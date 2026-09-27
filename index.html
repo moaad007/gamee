@@ -1,0 +1,2411 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Grammar Whack-a-Mole — Boston English Center</title>
+    <style>
+        :root {
+            --font: "Nunito", "Comic Sans MS", "Segoe UI", "Trebuchet MS", sans-serif;
+            --bec-blue: #0875ff;
+            --bec-blue-deep: #1357e8;
+            --bec-navy: #071326;
+            --bec-pink: #e43280;
+            --bec-border: rgba(147, 197, 253, .5);
+        }
+        * { box-sizing: border-box; }
+        html, body { height: 100%; width: 100%; margin: 0; }
+        body {
+            font-family: var(--font);
+            background-color: var(--bec-navy);
+            overflow: hidden;
+            position: relative;
+            user-select: none;
+            -webkit-user-select: none;
+            -webkit-tap-highlight-color: transparent;
+        }
+        #game-canvas {
+            position: absolute; inset: 0;
+            width: 100%; height: 100%;
+            display: block;
+            cursor: none;
+            touch-action: none;
+        }
+        .hidden { display: none !important; }
+
+        /* ---------- Question card ---------- */
+        #hud {
+            position: absolute; top: 0; left: 0; right: 0; z-index: 20;
+            display: flex; flex-direction: column; align-items: center;
+            padding: clamp(6px, 1.6vmin, 16px) 8px 0;
+            pointer-events: none;
+        }
+        #banner {
+            display: flex; align-items: center; gap: clamp(8px, 1.6vmin, 14px);
+            background: linear-gradient(180deg, #2a86ff 0%, var(--bec-blue) 45%, var(--bec-blue-deep) 100%);
+            border: 3px solid #fff; border-radius: 999px;
+            padding: clamp(6px, 1.2vmin, 12px) clamp(10px, 2vmin, 18px);
+            box-shadow: 0 12px 30px rgba(7,19,38,.35), 0 4px 12px rgba(8,117,255,.35),
+                inset 0 2px 0 rgba(255,255,255,.28), inset 0 -3px 0 rgba(7,19,38,.22);
+            max-width: min(94vw, 580px);
+        }
+        .q-icon {
+            flex: none;
+            width: clamp(34px, 6vmin, 52px); height: clamp(34px, 6vmin, 52px);
+            border-radius: 30%;
+            background: #fff;
+            display: flex; align-items: center; justify-content: center;
+            font-size: clamp(17px, 3.4vmin, 27px);
+            box-shadow: 0 4px 10px rgba(7,19,38,.25);
+        }
+        .q-body { text-align: left; min-width: 0; padding-right: 8px; }
+        .q-eyebrow {
+            font-size: clamp(8px, 1.4vmin, 10px); font-weight: 800;
+            letter-spacing: .14em; text-transform: uppercase; color: rgba(255,255,255,.85);
+        }
+        #prompt-text {
+            font-size: clamp(13px, 2.9vmin, 24px); font-weight: 900;
+            color: #fff; line-height: 1.12; text-transform: uppercase;
+            overflow-wrap: anywhere;
+            text-shadow: 0 2px 4px rgba(7,19,38,.3);
+        }
+        #hint-text {
+            font-size: clamp(9px, 1.8vmin, 14px); font-weight: 700;
+            color: rgba(255,255,255,.92); line-height: 1.2;
+        }
+        .q-progress {
+            margin-left: auto; padding-left: 6px; flex: none;
+            display: flex; flex-direction: column; gap: 2px; align-items: flex-end;
+        }
+        .q-progress-label {
+            font-size: 8px; font-weight: 800; color: rgba(255,255,255,.75);
+            letter-spacing: .12em; text-transform: uppercase;
+        }
+        .q-count { font-size: clamp(16px, 3vmin, 26px); font-weight: 900; color: #fff; line-height: 1; }
+
+        /* ---------- HUD row & scoreboard chips ---------- */
+        .hud-row {
+            width: 100%; max-width: 1150px;
+            display: flex; align-items: center;
+            gap: clamp(8px, 1.6vmin, 14px);
+        }
+        .hud-row .stat-group { flex: none; }
+        .hud-row #banner { flex: 1 1 auto; min-width: 0; margin: 0 auto; }
+        /* ---------- Controls adapt to any container ---------- */
+        /* Tier 1 (≤780px): banner moves to its own top row, everything else wraps */
+        @media (max-width: 780px) {
+            .hud-row { flex-wrap: wrap; justify-content: center; }
+            .hud-row #banner { order: -1; flex-basis: 100%; }
+            .hud-row .stat-group { flex: 0 1 auto; max-width: 100%; }
+            .chip { padding: 3px 10px 3px 5px; }
+            .chip-hearts { padding: 3px 10px; }
+            .stat-group { gap: 6px; }
+        }
+        /* Tier 2 (≤600px): icon+number chips only, leaner banner, smaller buttons */
+        @media (max-width: 600px) {
+            #hud { padding: 5px 4px 0; }
+            .hud-row { gap: 6px; }
+            .chip { gap: 6px; padding: 3px 8px 3px 4px; }
+            .chip-label { display: none; }
+            .chip-num { font-size: clamp(14px, 4.2vw, 20px); }
+            .chip-icon { width: clamp(24px, 7vw, 30px); height: clamp(24px, 7vw, 30px); }
+            #banner { padding: 5px 10px; gap: 8px; border-width: 2px; }
+            .q-icon { width: clamp(26px, 7vw, 34px); height: clamp(26px, 7vw, 34px); }
+            #hint-text { display: none; }
+            #prompt-text { font-size: clamp(11px, 3.4vw, 18px); }
+            .hud-ctl { width: 30px; height: 30px; }
+            .q-pips { gap: 2px; }
+            .q-pips i { width: 4px; height: 4px; }
+            #round-bar-wrap { height: 4px; margin-top: 4px; }
+        }
+        /* Tier 3 (≤400px): drop banner decorations, keep the question readable */
+        @media (max-width: 400px) {
+            .q-icon { display: none; }
+            .q-eyebrow { display: none; }
+            #banner { max-width: 100%; }
+        }
+        /* Short containers (platform embeds): compress vertically so the
+           playfield keeps its room even when the iframe is squat */
+        @media (max-height: 560px) {
+            #hud { padding-top: 4px; }
+            .chip-label { display: none; }
+            .chip { padding: 2px 8px 2px 4px; }
+            .chip-icon { width: clamp(22px, 4.6vmin, 30px); height: clamp(22px, 4.6vmin, 30px); }
+            .chip-num { font-size: clamp(13px, 3.6vmin, 20px); }
+            #hint-text { display: none; }
+            #banner { padding: 3px 10px; border-width: 2px; gap: 7px; }
+            .q-icon { width: clamp(24px, 5vmin, 36px); height: clamp(24px, 5vmin, 36px); font-size: clamp(13px, 2.8vmin, 20px); }
+            #prompt-text { font-size: clamp(10px, 2.8vmin, 18px); }
+            #hint-text { display: none; }
+            .hud-ctl { width: 28px; height: 28px; }
+            #round-bar-wrap { height: 4px; margin-top: 3px; }
+        }
+        .stat-group { display: flex; gap: 8px; flex-wrap: wrap; }
+        .chip {
+            display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+            background: linear-gradient(180deg, #ffffff 0%, #eef3fb 100%);
+            color: var(--bec-navy);
+            border: 2px solid rgba(255,255,255,.9);
+            border-radius: 999px;
+            padding: 4px 14px 4px 7px;
+            box-shadow: 0 8px 20px rgba(7,19,38,.25), inset 0 1px 0 #fff;
+        }
+        .chip-icon {
+            flex: none;
+            width: clamp(26px, 4.6vmin, 36px); height: clamp(26px, 4.6vmin, 36px);
+            border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            font-size: clamp(13px, 2.6vmin, 18px);
+        }
+        .chip-text { display: flex; flex-direction: column; align-items: flex-start; line-height: 1; }
+        .chip-num { font-size: clamp(16px, 3.2vmin, 26px); font-weight: 900; white-space: nowrap; color: var(--bec-navy); }
+        .chip-label {
+            font-size: clamp(8px, 1.5vmin, 11px); font-weight: 800;
+            text-transform: uppercase; letter-spacing: .08em;
+            color: #64748b; margin-top: 2px;
+        }
+        .chip-score  .chip-icon { background: linear-gradient(135deg, #ffd54a, #f59e0b); }
+        .chip-streak .chip-icon { background: var(--bec-pink); }
+        .chip-timer  .chip-icon { background: linear-gradient(135deg, var(--bec-blue), var(--bec-blue-deep)); }
+        .chip-level  .chip-icon { background: linear-gradient(135deg, #34d399, #059669); }
+        .chip-icon { color: #fff; }
+        .chip-hearts { padding: 4px 14px; }
+        .chip-timer.urgent { background: var(--bec-pink); animation: urgent-pulse 1s infinite ease-in-out; }
+        .chip-timer.urgent .chip-num { color: #fff; }
+        .chip-timer.urgent .chip-label { color: rgba(255,255,255,.75); }
+        .chip-timer.urgent .chip-icon { background: #b21e5e; }
+        .chip.bump { animation: chip-bump .35s ease; }
+        @keyframes chip-bump { 0% { transform: scale(1); } 40% { transform: scale(1.14); } 100% { transform: scale(1); } }
+        @keyframes urgent-pulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.07); } }
+        #hearts-container { display: flex; gap: 3px; font-size: clamp(13px, 2.6vmin, 19px); }
+        #hearts-container .hrt { color: #ef4444; display: flex; }
+        #hearts-container .hrt.off { color: #cbd5e1; }
+
+        /* Inline SVG icons replace emoji so every platform renders the same art */
+        .ic { width: 1em; height: 1em; display: block; fill: currentColor; }
+        .chip-icon .ic { width: 62%; height: 62%; }
+        .q-icon .ic { width: 62%; height: 62%; color: var(--bec-blue-deep); }
+        .hud-ctl .ic { width: 60%; height: 60%; }
+
+        /* Level progress pips inside the level chip */
+        .q-pips { display: flex; gap: 2.5px; margin-top: 3px; }
+        .q-pips i {
+            width: clamp(5px, 1vmin, 8px); height: clamp(5px, 1vmin, 8px);
+            border-radius: 50%; background: #c7d9f7; display: block;
+        }
+        .q-pips i.on { background: var(--bec-blue-deep); }
+        .q-pips i.now { background: var(--bec-pink); transform: scale(1.25); }
+
+        /* Compact in-game controls (night + sound) live in the HUD row, off the lawn */
+        .hud-ctl {
+            pointer-events: auto;
+            width: clamp(30px, 4.8vmin, 38px); height: clamp(30px, 4.8vmin, 38px);
+            border-radius: 50%; border: 2px solid rgba(255,255,255,.9);
+            background: linear-gradient(180deg, #ffffff 0%, #eef3fb 100%);
+            color: var(--bec-navy); font-size: clamp(14px, 2.4vmin, 18px);
+            display: flex; align-items: center; justify-content: center;
+            cursor: pointer; box-shadow: 0 8px 20px rgba(7,19,38,.25), inset 0 1px 0 #fff;
+            transition: transform .12s;
+        }
+        .hud-ctl:hover { transform: scale(1.1); }
+        .hud-ctl:focus-visible { outline: 3px solid rgba(8,117,255,.45); outline-offset: 2px; }
+
+        /* Thin glanceable depletion bar under the HUD row */
+        #round-bar-wrap {
+            width: 100%; max-width: 1150px; height: 5px; margin-top: 5px;
+            border-radius: 3px; background: rgba(7,19,38,.28); overflow: hidden;
+        }
+        #round-bar {
+            height: 100%; width: 100%; border-radius: 3px;
+            background: linear-gradient(90deg, var(--bec-blue), #4da3ff);
+            transition: width .25s linear, background .3s;
+        }
+        #round-bar.low { background: linear-gradient(90deg, var(--bec-pink), #f472b0); }
+
+        /* Respect learners who get motion-sick: kill pulses/bounces/hovers */
+        @media (prefers-reduced-motion: reduce) {
+            .badge, .chip.bump, .chip-timer.urgent, .g2-badge { animation: none !important; }
+            .btn:hover:not(:disabled), .hud-ctl:hover { transform: none; }
+        }
+
+        /* ---------- Overlays & panels ---------- */
+        .overlay { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; padding: clamp(8px, 2vmin, 24px); }
+        #start-screen {
+            z-index: 30;
+            background:
+                radial-gradient(60% 50% at 12% 8%, rgba(8,117,255,.38), transparent 62%),
+                radial-gradient(50% 45% at 92% 88%, rgba(228,50,128,.26), transparent 62%),
+                var(--bec-navy);
+        }
+        #game-over-screen { z-index: 50; background: rgba(7,19,38,.82); }
+        .panel {
+            background: #fff; border-radius: 24px;
+            box-shadow: 0 24px 60px rgba(7,19,38,.45), 0 10px 30px rgba(8,117,255,.18);
+            padding: clamp(16px, 3.5vmin, 34px);
+            max-width: 560px; width: 100%;
+            max-height: 100%; overflow-y: auto;
+            text-align: center; position: relative;
+        }
+        .panel-start { border: 6px solid #bfd9ff; overflow: hidden; }
+        .g2-badge {
+            position: absolute; top: -28px; right: -28px;
+            width: 96px; height: 96px; border-radius: 26%;
+            background: linear-gradient(135deg, var(--bec-blue), var(--bec-blue-deep));
+            transform: rotate(8deg);
+            display: flex; align-items: center; justify-content: center;
+            font-weight: 900; font-size: 52px; color: #fff;
+            box-shadow: 0 12px 26px rgba(8,117,255,.4);
+            pointer-events: none;
+        }
+        /* On narrow screens the floating badge overlapped the text:
+           put it in the flow as a centered logo mark instead */
+        @media (max-width: 560px) {
+            .g2-badge {
+                position: static;
+                width: 54px; height: 54px;
+                font-size: 29px;
+                border-radius: 24%;
+                margin: 0 auto 10px;
+                transform: none;
+            }
+        }
+        .tag {
+            display: inline-block; background: #e8f1ff; color: var(--bec-blue-deep);
+            border: 1px solid #bfd9ff; padding: 4px 12px; border-radius: 999px;
+            font-size: clamp(10px, 1.8vmin, 13px); font-weight: 700;
+            text-transform: uppercase; letter-spacing: .06em; margin: 0 6px 10px; max-width: 100%;
+        }
+        h1 { font-size: clamp(22px, 5vmin, 40px); color: var(--bec-navy); margin: 0 0 10px; letter-spacing: -.01em; }
+        .lead { color: #475569; font-size: clamp(13px, 2.2vmin, 17px); margin: 0 0 20px; font-weight: 600; }
+
+        .btn {
+            font-family: inherit; border: none; cursor: pointer; font-weight: 700; color: #fff;
+            border-radius: 16px; transition: transform .12s, filter .12s;
+            padding: 12px 16px; font-size: clamp(13px, 2.2vmin, 16px);
+        }
+        .btn:hover:not(:disabled) { transform: translateY(-2px); filter: brightness(1.05); }
+        .btn:active:not(:disabled) { transform: translateY(0); }
+        .btn:disabled { opacity: .55; cursor: default; }
+        .btn-primary { background: var(--bec-blue); color: #fff; box-shadow: 0 4px 0 #0b4fbd; }
+        .btn-primary:hover:not(:disabled) { background: #1d84ff; }
+        .btn-accent { background: var(--bec-pink); color: #fff; box-shadow: 0 4px 0 #a51e5f; }
+        .btn-outline { background: #fff; color: var(--bec-blue-deep); border: 2px solid var(--bec-border); box-shadow: 0 3px 0 rgba(8,117,255,.15); }
+        .btn-ghost { background: #eef2f7; color: #334155; box-shadow: 0 3px 0 #cbd5e1; }
+        .btn:focus-visible { outline: 3px solid rgba(8,117,255,.45); outline-offset: 2px; }
+
+        .mode-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(200px, 100%), 1fr)); gap: 10px; margin-bottom: 16px; }
+        .mode-grid .btn { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 14px 10px; }
+        .mode-grid .btn .big { font-size: clamp(15px, 2.6vmin, 18px); }
+        .mode-grid .btn small { font-weight: 600; font-size: clamp(10px, 1.8vmin, 12px); opacity: .9; }
+        .start-actions { display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; }
+
+        /* Floating day/night toggle (in-game) */
+        #night-toggle {
+            position: absolute; left: 12px; bottom: 12px; z-index: 25;
+            width: 44px; height: 44px; border-radius: 50%;
+            background: rgba(7,19,38,.55); color: #fff;
+            border: 2px solid rgba(255,255,255,.75);
+            display: flex; align-items: center; justify-content: center;
+            font-size: 20px; cursor: pointer;
+            backdrop-filter: blur(4px);
+            box-shadow: 0 6px 16px rgba(7,19,38,.35);
+            transition: transform .12s;
+        }
+        #night-toggle:hover { transform: scale(1.1); }
+        #night-toggle:focus-visible { outline: 3px solid rgba(8,117,255,.45); outline-offset: 2px; }
+
+        /* ---------- Game over ---------- */
+        .panel-over { border: 6px solid #bfd9ff; max-width: 520px; }
+        .badge {
+            width: clamp(64px, 12vmin, 96px); height: clamp(64px, 12vmin, 96px);
+            border-radius: 50%; background: linear-gradient(135deg, var(--bec-blue), var(--bec-blue-deep)); color: #fff;
+            display: flex; align-items: center; justify-content: center;
+            font-size: clamp(30px, 6vmin, 44px);
+            margin: 0 auto 10px;
+            box-shadow: 0 10px 26px rgba(8,117,255,.4);
+            animation: bounce 1.4s infinite ease-in-out;
+        }
+        @keyframes bounce { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
+        .panel-over h2 { font-size: clamp(22px, 4.4vmin, 32px); color: #1f2937; margin: 0 0 4px; }
+        #game-over-subtitle { color: #6b7280; font-weight: 600; font-size: clamp(12px, 2vmin, 15px); margin: 0 0 14px; }
+        .og-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(90px, 1fr)); gap: 8px; margin-bottom: 14px; }
+        .og { border-radius: 14px; padding: 10px 6px; border: 2px solid; }
+        .og .l { font-size: 10px; font-weight: 700; text-transform: uppercase; }
+        .og .v { font-size: clamp(20px, 4vmin, 30px); font-weight: 900; }
+        .og-score  { background: #e8f1ff; border-color: #bfd9ff; color: var(--bec-blue-deep); }
+        .og-streak { background: #fde9f3; border-color: #f7c1da; color: #c01d63; }
+        .og-acc    { background: #e8eef8; border-color: #c6d4ec; color: var(--bec-navy); }
+        .review {
+            background: #f6f9ff; border: 1px solid #dbe7fb; border-radius: 14px;
+            padding: 10px 12px; max-height: 170px; overflow-y: auto;
+            text-align: left; margin-bottom: 16px;
+        }
+        .review .list-label { margin-top: 0; }
+        .list-label { font-size: 10px; font-weight: 700; text-transform: uppercase; color: #6b7280; margin: 0 0 6px; letter-spacing: .05em; }
+        .rv {
+            display: flex; justify-content: space-between; align-items: flex-start; gap: 10px;
+            background: #fff; border: 1px solid #f3f4f6; border-radius: 9px;
+            padding: 5px 10px; margin-bottom: 4px; font-size: 12.5px; font-weight: 600; color: #374151;
+        }
+        .rv > span:first-child { word-break: break-word; min-width: 0; }
+        .rv-tag { font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 999px; white-space: nowrap; flex: none; }
+        .rv-tag.ok { background: #e0edff; color: var(--bec-blue-deep); }
+        .rv-tag.bad { background: #fde9f3; color: #c01d63; }
+        .rv-empty { color: #64748b; font-style: italic; font-size: 13px; }
+        .over-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+        .over-actions .btn { flex: 1; min-width: 140px; }
+    </style>
+</head>
+<body>
+    <canvas id="game-canvas"></canvas>
+
+    <!-- HUD Overlay: score left · question center · level/timer + hearts right -->
+    <div id="hud" class="hidden">
+        <div class="hud-row">
+            <div class="stat-group">
+                <div class="chip chip-score" id="score-chip">
+                    <div class="chip-icon"><svg class="ic" viewBox="0 0 24 24"><path d="M18 4V2H6v2H2v3c0 2.6 2 4.7 4.5 5-.6 1.9-2.3 3.3-4.5 3.5v2c3.5-.2 6.4-2.7 7-6.1h6c.6 3.4 3.5 5.9 7 6.1v-2c-2.2-.2-3.9-1.6-4.5-3.5C20 11.7 22 9.6 22 7V4h-4ZM4 7V6h2v3.9C4.8 9.4 4 8.3 4 7Zm16 0c0 1.3-.8 2.4-2 2.9V6h2v1Z"/></svg></div>
+                    <div class="chip-text">
+                        <div class="chip-num" id="score-val">0</div>
+                        <div class="chip-label">Score</div>
+                    </div>
+                </div>
+                <div class="chip chip-streak" id="streak-chip">
+                    <div class="chip-icon"><svg class="ic" viewBox="0 0 24 24"><path d="M13.5 1s1 2.5-1.5 5C9.4 8.7 7 10.5 7 14a5 5 0 0 0 10 0c0-1.6-.6-2.9-1.4-4-.3 1-.9 1.8-1.8 2.3.5-3.3-.3-8.3-.3-11.3Z"/></svg></div>
+                    <div class="chip-text">
+                        <div class="chip-num" id="streak-val">0x</div>
+                        <div class="chip-label">Streak</div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="banner">
+                <div class="q-icon"><svg class="ic" viewBox="0 0 24 24"><path d="M21 5c-1.1-.4-2.6-.7-4-.7-2.1 0-4.2.6-5 2-.8-1.4-2.9-2-5-2-1.4 0-2.9.3-4 .7v14.6c0 .5.5.8 1 .6 1-.3 2-.5 3-.5 2.1 0 4.2.6 5 2 .8-1.4 2.9-2 5-2 1 0 2 .2 3 .5.5.2 1-.1 1-.6V5Zm-2 12.1c-.9-.2-2-.4-3-.4-1.7 0-3.9.5-5 1.7V8.5c1.1-1.2 3.3-1.7 5-1.7 1 0 2.1.2 3 .4v9.9Z"/></svg></div>
+                <div class="q-body">
+                    <div class="q-eyebrow" id="q-eyebrow">Sentence Correction</div>
+                    <div id="prompt-text">HIT THE CORRECT SENTENCE!</div>
+                    <div id="hint-text">Whack the mole holding the correct sentence ✓</div>
+                </div>
+                <div class="q-progress">
+                    <div class="q-progress-label">Sentence</div>
+                    <div class="q-count" id="sentence-count">1</div>
+                </div>
+            </div>
+
+            <div class="stat-group">
+                <div class="chip chip-timer" id="timer-card">
+                    <div class="chip-icon">
+                        <svg class="ic" viewBox="0 0 24 24"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Zm0 18a8 8 0 1 1 0-16 8 8 0 0 1 0 16Zm.9-8.4L16 8.5l-1.4-1.4-3.9 3.9a1 1 0 0 0-.3.7V16h2v-4l.5-.4Z"/></svg>
+                    </div>
+                    <div class="chip-text">
+                        <div class="chip-num" id="timer-val">90s</div>
+                        <div class="chip-label">Time</div>
+                    </div>
+                </div>
+                <div class="chip chip-level" id="level-card">
+                    <div class="chip-icon">
+                        <svg class="ic" viewBox="0 0 24 24"><path d="M12 2a7 7 0 0 0-7 7c0 5.2 7 13 7 13s7-7.8 7-13a7 7 0 0 0-7-7Zm0 9.5A2.5 2.5 0 1 1 12 6.5a2.5 2.5 0 0 1 0 5Z"/></svg>
+                    </div>
+                    <div class="chip-text">
+                        <div class="chip-num" id="level-val">L1</div>
+                        <div class="q-pips" id="level-pips"></div>
+                    </div>
+                </div>
+                <div class="chip chip-hearts" id="hearts-card">
+                    <div id="hearts-container"></div>
+                </div>
+                <button class="hud-ctl" id="hud-night" onclick="setNight(!nightMode)" title="Switch day/night" aria-label="Switch day or night"></button>
+                <button class="hud-ctl" id="hud-sound" onclick="toggleSound()" title="Sound on/off" aria-label="Toggle sound"></button>
+                <button class="hud-ctl" id="hud-pause" onclick="setPaused(!paused)" title="Pause (Esc)" aria-label="Pause or resume"></button>
+            </div>
+        </div>
+        <div id="round-bar-wrap"><div id="round-bar"></div></div>
+    </div>
+
+    <!-- Start Screen -->
+    <div id="start-screen" class="overlay">
+        <div class="panel panel-start">
+            <div class="g2-badge">B</div>
+            <div class="tag">🎓 Boston English Center · Grammar</div>
+            <h1>Grammar Whack-a-Mole!</h1>
+            <p class="lead">
+                Moles pop up holding sentences — read them all, then whack the mole holding
+                the <b>correct</b> sentence. No rush: the moles wait while you read!
+            </p>
+
+            <div class="mode-grid">
+                <button class="btn btn-primary" onclick="startGame('classic')">
+                    <span style="font-size:1.6em">🌱</span>
+                    <span class="big">Classic Garden</span>
+                    <small>Timed 90s challenge</small>
+                </button>
+                <button class="btn btn-accent" onclick="startLevel(unlockedLevel)">
+                    <span style="font-size:1.6em">🗺️</span>
+                    <span class="big">Level Mode</span>
+                    <small id="level-btn-sub">10 sentences · 3 hearts</small>
+                </button>
+            </div>
+
+            <div class="start-actions">
+                <button class="btn btn-outline" id="night-mode-btn" onclick="setNight(!nightMode)">🌙 Night Mode</button>
+                <button class="btn btn-ghost" id="sound-toggle-btn" onclick="toggleSound()">🔊 Sound On</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Pause Screen -->
+    <div id="pause-screen" class="overlay hidden" style="z-index: 40; background: rgba(7,19,38,.66);">
+        <div class="panel panel-over" style="max-width: 380px;">
+            <div class="badge" style="animation-duration: 2.6s;">
+                <svg class="ic" viewBox="0 0 24 24" style="width:56%;height:56%;"><path d="M7 5h3.4v14H7V5Zm6.6 0H17v14h-3.4V5Z"/></svg>
+            </div>
+            <h2>Paused</h2>
+            <p style="color:#64748b;font-weight:600;font-size:clamp(12px,2vmin,15px);margin:0 0 16px;">Take your time — the moles will wait.</p>
+            <div class="over-actions" style="flex-direction: column;">
+                <button class="btn btn-primary" onclick="setPaused(false)">▶ Resume</button>
+                <button class="btn btn-outline" onclick="restartGame()">🔁 Restart</button>
+                <button class="btn btn-ghost" onclick="returnToMenu()">🚪 Exit to Menu</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Game Over Screen -->
+    <div id="game-over-screen" class="overlay hidden">
+        <div class="panel panel-over">
+            <div class="badge">🏆</div>
+            <h2 id="game-over-title">Time's Up!</h2>
+            <p id="game-over-subtitle">You mastered your sentences!</p>
+
+            <div class="og-grid">
+                <div class="og og-score"><div class="l">Final Score</div><div class="v" id="final-score">0</div></div>
+                <div class="og og-streak"><div class="l">Max Streak</div><div class="v" id="final-streak">0x</div></div>
+                <div class="og og-acc"><div class="l">Accuracy</div><div class="v" id="final-accuracy">—</div></div>
+            </div>
+
+            <div class="review">
+                <div class="list-label">Sentence Review</div>
+                <div id="review-list"></div>
+            </div>
+
+            <div class="over-actions">
+                <button class="btn btn-primary" onclick="restartGame()">🔁 Play Again</button>
+                <button class="btn btn-ghost" onclick="returnToMenu()">Menu</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ---------- Small helpers ----------
+        const $ = id => document.getElementById(id);
+        const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+        const pick = arr => arr[Math.floor(Math.random() * arr.length)];
+        const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+        const FONT = '"Nunito","Comic Sans MS","Segoe UI",sans-serif';
+
+        // JS-built inline SVG icons (hearts, mode controls) — same art on every platform
+        const ICONS = {
+            heart: '<svg class="ic" viewBox="0 0 24 24"><path d="M12 21s-8-5.2-8-11a4.6 4.6 0 0 1 8-3.1A4.6 4.6 0 0 1 20 10c0 5.8-8 11-8 11Z"/></svg>',
+            moon: '<svg class="ic" viewBox="0 0 24 24"><path d="M21 13.2A9 9 0 1 1 10.8 3 7.2 7.2 0 0 0 21 13.2Z"/></svg>',
+            sun: '<svg class="ic" viewBox="0 0 24 24"><path d="M12 17a5 5 0 1 0 0-10 5 5 0 0 0 0 10Zm-1-15h2v3h-2V2Zm0 17h2v3h-2v-3ZM2 11h3v2H2v-2Zm17 0h3v2h-3v-2ZM4.2 5.6l1.4-1.4 2.1 2.1-1.4 1.4-2.1-2.1Zm12.1 12.1 1.4-1.4 2.1 2.1-1.4 1.4-2.1-2.1Zm2.1-13.5 1.4 1.4-2.1 2.1-1.4-1.4 2.1-2.1ZM6.3 17.7l1.4 1.4-2.1 2.1-1.4-1.4 2.1-2.1Z"/></svg>',
+            spkOn: '<svg class="ic" viewBox="0 0 24 24"><path d="M4 9v6h4l5 4V5L8 9H4Zm12.5 3a3.5 3.5 0 0 0-2-3.2v6.4a3.5 3.5 0 0 0 2-3.2Zm-2-8.4v2.1a6.5 6.5 0 0 1 0 12.6v2.1a8.5 8.5 0 0 0 0-16.8Z"/></svg>',
+            spkOff: '<svg class="ic" viewBox="0 0 24 24"><path d="M4 9v6h4l5 4V5L8 9H4Zm17 .4L19.6 8l-2.1 2.1L15.4 8 14 9.4l2.1 2.1L14 13.6 15.4 15l2.1-2.1L19.6 15 21 13.6l-2.1-2.1L21 9.4Z"/></svg>',
+            pause: '<svg class="ic" viewBox="0 0 24 24"><path d="M7 5h3.4v14H7V5Zm6.6 0H17v14h-3.4V5Z"/></svg>',
+            play: '<svg class="ic" viewBox="0 0 24 24"><path d="M8 5.2v13.6L19 12 8 5.2Z"/></svg>'
+        };
+        const REDUCE_MOTION = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+
+        // roundRect fallback for older browsers
+        function rr(c, x, y, w, h, r) {
+            r = Math.min(r, w / 2, h / 2);
+            c.beginPath();
+            c.moveTo(x + r, y);
+            c.arcTo(x + w, y, x + w, y + h, r);
+            c.arcTo(x + w, y + h, x, y + h, r);
+            c.arcTo(x, y + h, x, y, r);
+            c.arcTo(x, y, x + w, y, r);
+            c.closePath();
+        }
+
+        // ---------- Sound (synthesized, no audio files) ----------
+        class SoundEngine {
+            constructor() { this.ctx = null; this.enabled = true; }
+            init() {
+                if (!this.ctx) {
+                    const AC = window.AudioContext || window.webkitAudioContext;
+                    if (AC) this.ctx = new AC();
+                }
+                if (this.ctx && this.ctx.state === 'suspended') this.ctx.resume();
+            }
+            tone(type, f0, f1, dur, vol, when = 0) {
+                if (!this.enabled || !this.ctx) return;
+                const now = this.ctx.currentTime + when;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = type;
+                osc.frequency.setValueAtTime(f0, now);
+                if (f1 !== f0) {
+                    if (type === 'sawtooth') osc.frequency.linearRampToValueAtTime(f1, now + dur);
+                    else osc.frequency.exponentialRampToValueAtTime(f1, now + dur);
+                }
+                gain.gain.setValueAtTime(vol, now);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + dur);
+                osc.connect(gain); gain.connect(this.ctx.destination);
+                osc.start(now); osc.stop(now + dur);
+            }
+            playPop() { this.init(); this.tone('sine', 250, 550, 0.1, 0.25); }
+            playWhackSuccess() { this.init(); this.tone('triangle', 400, 800, 0.2, 0.35); }
+            playWhackFail() { this.init(); this.tone('sawtooth', 150, 80, 0.2, 0.3); }
+            playGameOver() {
+                this.init();
+                [300, 250, 200, 150].forEach((f, i) => this.tone('sine', f, f, 0.2, 0.25, i * 0.15));
+            }
+        }
+        const soundEngine = new SoundEngine();
+
+        // ---------- Vector art: detailed inline SVG (crisp at any size, offline) ----------
+        const svgURL = s => 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(s.replace(/\s{2,}/g, ' '))));
+        const svgImg = (w, h, inner) =>
+            `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">${inner}</svg>`;
+
+        const BG_SVG = svgImg(1200, 750, `
+            <defs>
+                <linearGradient id="sky" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#38b6f0"/><stop offset=".7" stop-color="#a5e3ff"/><stop offset="1" stop-color="#e3f6ff"/></linearGradient>
+                <radialGradient id="glow"><stop offset="0" stop-color="#fff3b0" stop-opacity=".95"/><stop offset=".55" stop-color="#ffe98a" stop-opacity=".35"/><stop offset="1" stop-color="#ffe98a" stop-opacity="0"/></radialGradient>
+                <linearGradient id="grass" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#52cd6d"/><stop offset=".55" stop-color="#35b558"/><stop offset="1" stop-color="#1e9444"/></linearGradient>
+                <linearGradient id="hillg" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#8fe09a"/><stop offset="1" stop-color="#4cc463"/></linearGradient>
+            </defs>
+            <rect width="1200" height="750" fill="url(#sky)"/>
+            <circle cx="1045" cy="92" r="205" fill="url(#glow)"/>
+            <circle cx="1045" cy="92" r="50" fill="#ffe066"/>
+            <g fill="#ffffff" opacity=".92">
+                <g><ellipse cx="150" cy="105" rx="52" ry="17"/><ellipse cx="185" cy="94" rx="34" ry="14"/><ellipse cx="118" cy="96" rx="26" ry="11"/></g>
+                <g><ellipse cx="520" cy="66" rx="44" ry="14"/><ellipse cx="548" cy="56" rx="27" ry="11"/><ellipse cx="495" cy="58" rx="21" ry="9"/></g>
+                <g><ellipse cx="870" cy="140" rx="40" ry="13"/><ellipse cx="895" cy="131" rx="24" ry="10"/></g>
+                <g opacity=".85"><ellipse cx="60" cy="205" rx="34" ry="11"/><ellipse cx="80" cy="198" rx="20" ry="8"/></g>
+            </g>
+            <path d="M0,302 Q210,215 450,283 T920,272 Q1090,252 1200,300 L1200,345 L0,345 Z" fill="url(#hillg)"/>
+            <path d="M0,318 Q320,252 660,300 T1200,292 L1200,350 L0,350 Z" fill="#63d277" opacity=".85"/>
+            <rect y="335" width="1200" height="415" fill="url(#grass)"/>
+            <g fill="#ffffff" opacity=".055">
+                <path d="M-80,750 L250,335 L340,335 L10,750 Z"/><path d="M240,750 L590,335 L680,335 L330,750 Z"/>
+                <path d="M560,750 L920,335 L1010,335 L650,750 Z"/><path d="M880,750 L1200,400 L1200,500 L970,750 Z"/>
+            </g>
+            <g fill="#000000" opacity=".04">
+                <path d="M80,750 L420,335 L510,335 L170,750 Z"/><path d="M400,750 L760,335 L850,335 L490,750 Z"/><path d="M720,750 L1080,335 L1170,335 L810,750 Z"/>
+            </g>
+            <g>
+                <ellipse cx="95" cy="338" rx="76" ry="27" fill="#2fae54"/><ellipse cx="95" cy="330" rx="68" ry="22" fill="#3cc465"/>
+                <ellipse cx="300" cy="342" rx="58" ry="21" fill="#2c9f4e"/><ellipse cx="300" cy="335" rx="50" ry="17" fill="#46c068"/>
+                <ellipse cx="1105" cy="340" rx="80" ry="28" fill="#2fae54"/><ellipse cx="1105" cy="332" rx="70" ry="23" fill="#3cc465"/>
+            </g>
+            <g stroke="#0f7a36" stroke-width="1.6" fill="none" stroke-linecap="round" opacity=".8">
+                <path d="M60,748 q2,-14 4,0 q2,-11 4,0"/><path d="M330,752 q2,-15 4,0 q2,-11 4,0"/><path d="M760,750 q2,-14 4,0 q2,-10 4,0"/><path d="M1050,752 q2,-15 4,0 q2,-11 4,0"/>
+            </g>
+            <g>
+                <g transform="translate(150,742)"><line x1="0" y1="0" x2="0" y2="-15" stroke="#0f7a36" stroke-width="2.6"/><g fill="#ffffff"><ellipse cx="0" cy="-22" rx="3.6" ry="6.4"/><ellipse cx="0" cy="-22" rx="3.6" ry="6.4" transform="rotate(72 0 -15.6)"/><ellipse cx="0" cy="-22" rx="3.6" ry="6.4" transform="rotate(144 0 -15.6)"/><ellipse cx="0" cy="-22" rx="3.6" ry="6.4" transform="rotate(216 0 -15.6)"/><ellipse cx="0" cy="-22" rx="3.6" ry="6.4" transform="rotate(288 0 -15.6)"/></g><circle cx="0" cy="-15.6" r="4.4" fill="#fbbf24"/></g>
+                <g transform="translate(455,748) scale(1.2)"><line x1="0" y1="0" x2="0" y2="-15" stroke="#0f7a36" stroke-width="2.6"/><g fill="#ffffff"><ellipse cx="0" cy="-22" rx="3.6" ry="6.4"/><ellipse cx="0" cy="-22" rx="3.6" ry="6.4" transform="rotate(72 0 -15.6)"/><ellipse cx="0" cy="-22" rx="3.6" ry="6.4" transform="rotate(144 0 -15.6)"/><ellipse cx="0" cy="-22" rx="3.6" ry="6.4" transform="rotate(216 0 -15.6)"/><ellipse cx="0" cy="-22" rx="3.6" ry="6.4" transform="rotate(288 0 -15.6)"/></g><circle cx="0" cy="-15.6" r="4.4" fill="#fbbf24"/></g>
+                <g transform="translate(700,740) scale(.95)"><line x1="0" y1="0" x2="0" y2="-15" stroke="#0f7a36" stroke-width="2.6"/><g fill="#ffffff"><ellipse cx="0" cy="-22" rx="3.6" ry="6.4"/><ellipse cx="0" cy="-22" rx="3.6" ry="6.4" transform="rotate(72 0 -15.6)"/><ellipse cx="0" cy="-22" rx="3.6" ry="6.4" transform="rotate(144 0 -15.6)"/><ellipse cx="0" cy="-22" rx="3.6" ry="6.4" transform="rotate(216 0 -15.6)"/><ellipse cx="0" cy="-22" rx="3.6" ry="6.4" transform="rotate(288 0 -15.6)"/></g><circle cx="0" cy="-15.6" r="4.4" fill="#fbbf24"/></g>
+                <g transform="translate(985,750) scale(1.25)"><line x1="0" y1="0" x2="0" y2="-15" stroke="#0f7a36" stroke-width="2.6"/><g fill="#ffffff"><ellipse cx="0" cy="-22" rx="3.6" ry="6.4"/><ellipse cx="0" cy="-22" rx="3.6" ry="6.4" transform="rotate(72 0 -15.6)"/><ellipse cx="0" cy="-22" rx="3.6" ry="6.4" transform="rotate(144 0 -15.6)"/><ellipse cx="0" cy="-22" rx="3.6" ry="6.4" transform="rotate(216 0 -15.6)"/><ellipse cx="0" cy="-22" rx="3.6" ry="6.4" transform="rotate(288 0 -15.6)"/></g><circle cx="0" cy="-15.6" r="4.4" fill="#fbbf24"/></g>
+            </g>
+            <g fill="#eaffea" opacity=".08">
+                <ellipse cx="300" cy="520" rx="260" ry="58"/><ellipse cx="900" cy="565" rx="300" ry="70"/><ellipse cx="580" cy="690" rx="340" ry="78"/>
+            </g>
+            <g fill="#0c5c2c" opacity=".16">
+                <circle cx="180" cy="560" r="2.6"/><circle cx="420" cy="612" r="2.2"/><circle cx="762" cy="542" r="2.6"/><circle cx="1012" cy="598" r="2.2"/><circle cx="92" cy="678" r="2.6"/><circle cx="332" cy="722" r="2.2"/><circle cx="562" cy="658" r="2.6"/><circle cx="882" cy="700" r="2.2"/><circle cx="1122" cy="660" r="2.6"/><circle cx="242" cy="498" r="2.2"/><circle cx="692" cy="592" r="2.6"/><circle cx="958" cy="518" r="2.2"/><circle cx="140" cy="630" r="2.2"/><circle cx="1060" cy="730" r="2.6"/>
+            </g>
+            <g fill="none" stroke-linecap="round">
+                <g stroke="#2c9f4e" stroke-width="3">
+                    <path d="M118,744 q-3,-15 1,-22"/><path d="M125,744 q0,-18 0,-25"/><path d="M132,744 q3,-15 0,-22"/>
+                    <path d="M388,752 q-3,-14 1,-20"/><path d="M395,752 q0,-17 0,-23"/><path d="M401,752 q3,-14 0,-20"/>
+                    <path d="M638,746 q-3,-15 1,-21"/><path d="M645,746 q0,-18 0,-24"/><path d="M651,746 q3,-15 0,-21"/>
+                    <path d="M878,752 q-3,-14 1,-20"/><path d="M885,752 q0,-17 0,-23"/><path d="M891,752 q3,-14 0,-20"/>
+                    <path d="M1128,746 q-3,-15 1,-22"/><path d="M1135,746 q0,-18 0,-25"/><path d="M1141,746 q3,-15 0,-22"/>
+                    <path d="M58,600 q-2,-11 1,-16"/><path d="M64,600 q0,-13 0,-18"/><path d="M70,600 q2,-11 0,-16"/>
+                    <path d="M1150,600 q-2,-11 1,-16"/><path d="M1156,600 q0,-13 0,-18"/><path d="M1162,600 q2,-11 0,-16"/>
+                    <path d="M252,688 q-2,-10 1,-15"/><path d="M258,688 q0,-12 0,-16"/><path d="M264,688 q2,-10 0,-15"/>
+                    <path d="M942,672 q-2,-10 1,-15"/><path d="M948,672 q0,-12 0,-16"/><path d="M954,672 q2,-10 0,-15"/>
+                </g>
+                <g stroke="#7ee08f" stroke-width="2.2" opacity=".9">
+                    <path d="M122,744 q-1,-12 2,-17"/><path d="M128,744 q1,-13 1,-18"/>
+                    <path d="M392,752 q-1,-11 2,-15"/><path d="M398,752 q1,-12 1,-16"/>
+                    <path d="M642,746 q-1,-12 2,-16"/><path d="M648,746 q1,-13 1,-17"/>
+                    <path d="M882,752 q-1,-11 2,-15"/><path d="M888,752 q1,-12 1,-16"/>
+                    <path d="M62,600 q-1,-9 2,-12"/><path d="M1154,600 q-1,-9 2,-12"/>
+                    <path d="M256,688 q-1,-8 2,-11"/><path d="M946,672 q-1,-8 2,-11"/>
+                </g>
+            </g>
+            <g>
+                <g transform="translate(268,706) scale(.95)"><line x1="0" y1="0" x2="0" y2="-13" stroke="#0f7a36" stroke-width="2.4"/><g fill="#f9a8d4"><ellipse cx="0" cy="-19" rx="3.2" ry="5.6"/><ellipse cx="0" cy="-19" rx="3.2" ry="5.6" transform="rotate(72 0 -13.4)"/><ellipse cx="0" cy="-19" rx="3.2" ry="5.6" transform="rotate(144 0 -13.4)"/><ellipse cx="0" cy="-19" rx="3.2" ry="5.6" transform="rotate(216 0 -13.4)"/><ellipse cx="0" cy="-19" rx="3.2" ry="5.6" transform="rotate(288 0 -13.4)"/></g><circle cx="0" cy="-13.4" r="3.8" fill="#fde047"/></g>
+                <g transform="translate(560,714) scale(.8)"><line x1="0" y1="0" x2="0" y2="-13" stroke="#0f7a36" stroke-width="2.4"/><g fill="#f9a8d4"><ellipse cx="0" cy="-19" rx="3.2" ry="5.6"/><ellipse cx="0" cy="-19" rx="3.2" ry="5.6" transform="rotate(72 0 -13.4)"/><ellipse cx="0" cy="-19" rx="3.2" ry="5.6" transform="rotate(144 0 -13.4)"/><ellipse cx="0" cy="-19" rx="3.2" ry="5.6" transform="rotate(216 0 -13.4)"/><ellipse cx="0" cy="-19" rx="3.2" ry="5.6" transform="rotate(288 0 -13.4)"/></g><circle cx="0" cy="-13.4" r="3.8" fill="#fde047"/></g>
+                <g transform="translate(1082,692) scale(1.05)"><line x1="0" y1="0" x2="0" y2="-13" stroke="#0f7a36" stroke-width="2.4"/><g fill="#f9a8d4"><ellipse cx="0" cy="-19" rx="3.2" ry="5.6"/><ellipse cx="0" cy="-19" rx="3.2" ry="5.6" transform="rotate(72 0 -13.4)"/><ellipse cx="0" cy="-19" rx="3.2" ry="5.6" transform="rotate(144 0 -13.4)"/><ellipse cx="0" cy="-19" rx="3.2" ry="5.6" transform="rotate(216 0 -13.4)"/><ellipse cx="0" cy="-19" rx="3.2" ry="5.6" transform="rotate(288 0 -13.4)"/></g><circle cx="0" cy="-13.4" r="3.8" fill="#fde047"/></g>
+                <g transform="translate(836,566) scale(.7)"><line x1="0" y1="0" x2="0" y2="-13" stroke="#0f7a36" stroke-width="2.4"/><g fill="#fde047"><ellipse cx="0" cy="-19" rx="3.2" ry="5.6"/><ellipse cx="0" cy="-19" rx="3.2" ry="5.6" transform="rotate(72 0 -13.4)"/><ellipse cx="0" cy="-19" rx="3.2" ry="5.6" transform="rotate(144 0 -13.4)"/><ellipse cx="0" cy="-19" rx="3.2" ry="5.6" transform="rotate(216 0 -13.4)"/><ellipse cx="0" cy="-19" rx="3.2" ry="5.6" transform="rotate(288 0 -13.4)"/></g><circle cx="0" cy="-13.4" r="3.6" fill="#f59e0b"/></g>
+                <g transform="translate(196,540) scale(.7)"><line x1="0" y1="0" x2="0" y2="-13" stroke="#0f7a36" stroke-width="2.4"/><g fill="#fde047"><ellipse cx="0" cy="-19" rx="3.2" ry="5.6"/><ellipse cx="0" cy="-19" rx="3.2" ry="5.6" transform="rotate(72 0 -13.4)"/><ellipse cx="0" cy="-19" rx="3.2" ry="5.6" transform="rotate(144 0 -13.4)"/><ellipse cx="0" cy="-19" rx="3.2" ry="5.6" transform="rotate(216 0 -13.4)"/><ellipse cx="0" cy="-19" rx="3.2" ry="5.6" transform="rotate(288 0 -13.4)"/></g><circle cx="0" cy="-13.4" r="3.6" fill="#f59e0b"/></g>
+            </g>
+            <g>
+                <ellipse cx="170" cy="734" rx="16" ry="9" fill="#9fb0ba"/><ellipse cx="170" cy="731" rx="13" ry="6" fill="#c2ced6"/><ellipse cx="170" cy="729" rx="5" ry="2" fill="#e8eff4" opacity=".8"/>
+                <ellipse cx="189" cy="737" rx="10" ry="6" fill="#8a9ba5"/><ellipse cx="189" cy="735" rx="7" ry="4" fill="#aebcc4"/>
+                <ellipse cx="1024" cy="718" rx="15" ry="8" fill="#9fb0ba"/><ellipse cx="1024" cy="715" rx="12" ry="5.5" fill="#c2ced6"/><ellipse cx="1020" cy="713" rx="4.5" ry="1.8" fill="#e8eff4" opacity=".8"/>
+                <ellipse cx="1041" cy="721" rx="9" ry="5.5" fill="#8a9ba5"/><ellipse cx="1041" cy="719" rx="6" ry="3.5" fill="#aebcc4"/>
+                <ellipse cx="500" cy="742" rx="12" ry="7" fill="#9fb0ba"/><ellipse cx="500" cy="739" rx="9" ry="4.5" fill="#c2ced6"/>
+            </g>
+            <g transform="translate(1136,586)">
+                <ellipse cx="0" cy="2" rx="17" ry="11" fill="#43a047"/><path d="M-17,2 Q0,-6 17,2" stroke="#2e7d32" stroke-width="1.6" fill="none"/>
+                <ellipse cx="3" cy="-4" rx="10" ry="8" fill="#e53935"/>
+                <circle cx="-5" cy="-4" r="4.4" fill="#26221f"/>
+                <circle cx="-6.6" cy="-5.6" r="1.1" fill="#ffffff"/>
+                <circle cx="2" cy="-8" r="1.4" fill="#26221f"/><circle cx="7" cy="-4" r="1.4" fill="#26221f"/><circle cx="3" cy="0" r="1.4" fill="#26221f"/>
+                <path d="M-8,-10 L-11,-15 M0,-12 L0,-17 M6,-11 L9,-15" stroke="#26221f" stroke-width="1.4" stroke-linecap="round"/>
+            </g>`);
+
+        const BG_NIGHT_SVG = svgImg(1200, 750, `
+            <defs>
+                <linearGradient id="nsky" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#0a1530"/><stop offset=".6" stop-color="#14264a"/><stop offset="1" stop-color="#1c3560"/></linearGradient>
+                <radialGradient id="nglow"><stop offset="0" stop-color="#f6f3e4" stop-opacity=".32"/><stop offset=".6" stop-color="#f6f3e4" stop-opacity=".1"/><stop offset="1" stop-color="#f6f3e4" stop-opacity="0"/></radialGradient>
+                <linearGradient id="ngrass" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#155e33"/><stop offset=".55" stop-color="#0f4a27"/><stop offset="1" stop-color="#0b3a1e"/></linearGradient>
+                <linearGradient id="nhill" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#1d5034"/><stop offset="1" stop-color="#123c25"/></linearGradient>
+            </defs>
+            <rect width="1200" height="750" fill="url(#nsky)"/>
+            <circle cx="1035" cy="95" r="160" fill="url(#nglow)"/>
+            <circle cx="1035" cy="95" r="44" fill="#f6f3e4"/>
+            <circle cx="1022" cy="82" r="7" fill="#e3dfc9" opacity=".8"/><circle cx="1048" cy="108" r="5" fill="#e3dfc9" opacity=".8"/><circle cx="1030" cy="112" r="4" fill="#e3dfc9" opacity=".7"/><circle cx="1050" cy="76" r="3.5" fill="#e3dfc9" opacity=".6"/>
+            <g fill="#ffffff">
+                <circle cx="60" cy="40" r="1.2" opacity=".9"/><circle cx="140" cy="90" r=".9" opacity=".6"/><circle cx="210" cy="50" r="1.4" opacity=".95"/><circle cx="300" cy="120" r="1" opacity=".7"/><circle cx="370" cy="60" r="1.1" opacity=".85"/><circle cx="430" cy="150" r=".8" opacity=".6"/><circle cx="520" cy="40" r="1.3" opacity=".9"/><circle cx="590" cy="100" r=".9" opacity=".65"/><circle cx="660" cy="70" r="1.2" opacity=".85"/><circle cx="730" cy="140" r="1" opacity=".7"/><circle cx="800" cy="50" r="1.3" opacity=".9"/><circle cx="870" cy="110" r=".8" opacity=".6"/><circle cx="940" cy="60" r="1" opacity=".75"/><circle cx="1090" cy="170" r="1.1" opacity=".8"/><circle cx="1150" cy="90" r="1.3" opacity=".9"/><circle cx="90" cy="170" r="1" opacity=".7"/><circle cx="250" cy="200" r=".9" opacity=".6"/><circle cx="480" cy="190" r="1.1" opacity=".8"/><circle cx="620" cy="170" r=".8" opacity=".6"/><circle cx="760" cy="210" r="1" opacity=".7"/><circle cx="1010" cy="40" r=".9" opacity=".7"/><circle cx="30" cy="120" r=".8" opacity=".6"/><circle cx="1110" cy="130" r="1" opacity=".75"/><circle cx="340" cy="160" r=".8" opacity=".6"/><circle cx="550" cy="140" r=".9" opacity=".7"/><circle cx="890" cy="180" r="1" opacity=".7"/>
+                <path d="M0,-6 L1.6,-1.6 L6,0 L1.6,1.6 L0,6 L-1.6,1.6 L-6,0 L-1.6,-1.6 Z" transform="translate(180,80)" opacity=".95"/>
+                <path d="M0,-6 L1.6,-1.6 L6,0 L1.6,1.6 L0,6 L-1.6,1.6 L-6,0 L-1.6,-1.6 Z" transform="translate(720,60) scale(.8)" opacity=".9"/>
+                <path d="M0,-6 L1.6,-1.6 L6,0 L1.6,1.6 L0,6 L-1.6,1.6 L-6,0 L-1.6,-1.6 Z" transform="translate(420,110) scale(.7)" opacity=".85"/>
+                <path d="M0,-6 L1.6,-1.6 L6,0 L1.6,1.6 L0,6 L-1.6,1.6 L-6,0 L-1.6,-1.6 Z" transform="translate(980,150) scale(.9)" opacity=".95"/>
+            </g>
+            <g stroke="#ffffff" stroke-width="2" stroke-linecap="round" opacity=".5">
+                <line x1="858" y1="52" x2="896" y2="82"/>
+            </g>
+            <circle cx="858" cy="52" r="2" fill="#ffffff" opacity=".9"/>
+            <g fill="#223458" opacity=".75">
+                <g><ellipse cx="150" cy="105" rx="52" ry="17"/><ellipse cx="185" cy="94" rx="34" ry="14"/><ellipse cx="118" cy="96" rx="26" ry="11"/></g>
+                <g><ellipse cx="520" cy="66" rx="44" ry="14"/><ellipse cx="548" cy="56" rx="27" ry="11"/><ellipse cx="495" cy="58" rx="21" ry="9"/></g>
+            </g>
+            <path d="M0,302 Q210,215 450,283 T920,272 Q1090,252 1200,300 L1200,345 L0,345 Z" fill="url(#nhill)"/>
+            <path d="M0,318 Q320,252 660,300 T1200,292 L1200,350 L0,350 Z" fill="#1d5034" opacity=".7"/>
+            <rect y="335" width="1200" height="415" fill="url(#ngrass)"/>
+            <g fill="#ffffff" opacity=".035">
+                <path d="M-80,750 L250,335 L340,335 L10,750 Z"/><path d="M240,750 L590,335 L680,335 L330,750 Z"/>
+                <path d="M560,750 L920,335 L1010,335 L650,750 Z"/><path d="M880,750 L1200,400 L1200,500 L970,750 Z"/>
+            </g>
+            <g>
+                <ellipse cx="95" cy="338" rx="76" ry="27" fill="#0d3a20"/><ellipse cx="95" cy="330" rx="68" ry="22" fill="#114a2a"/>
+                <ellipse cx="300" cy="342" rx="58" ry="21" fill="#0b341c"/><ellipse cx="300" cy="335" rx="50" ry="17" fill="#0f4224"/>
+                <ellipse cx="1105" cy="340" rx="80" ry="28" fill="#0d3a20"/><ellipse cx="1105" cy="332" rx="70" ry="23" fill="#114a2a"/>
+            </g>
+            <g stroke="#0e4a26" stroke-width="1.6" fill="none" stroke-linecap="round" opacity=".8">
+                <path d="M60,748 q2,-14 4,0 q2,-11 4,0"/><path d="M330,752 q2,-15 4,0 q2,-11 4,0"/><path d="M760,750 q2,-14 4,0 q2,-10 4,0"/><path d="M1050,752 q2,-15 4,0 q2,-11 4,0"/>
+            </g>
+            <g>
+                <g transform="translate(150,742)"><line x1="0" y1="0" x2="0" y2="-15" stroke="#0e4a26" stroke-width="2.6"/><g fill="#d7dee8"><ellipse cx="0" cy="-22" rx="3.6" ry="6.4"/><ellipse cx="0" cy="-22" rx="3.6" ry="6.4" transform="rotate(72 0 -15.6)"/><ellipse cx="0" cy="-22" rx="3.6" ry="6.4" transform="rotate(144 0 -15.6)"/><ellipse cx="0" cy="-22" rx="3.6" ry="6.4" transform="rotate(216 0 -15.6)"/><ellipse cx="0" cy="-22" rx="3.6" ry="6.4" transform="rotate(288 0 -15.6)"/></g><circle cx="0" cy="-15.6" r="4.4" fill="#c9a53a"/></g>
+                <g transform="translate(455,748) scale(1.2)"><line x1="0" y1="0" x2="0" y2="-15" stroke="#0e4a26" stroke-width="2.6"/><g fill="#d7dee8"><ellipse cx="0" cy="-22" rx="3.6" ry="6.4"/><ellipse cx="0" cy="-22" rx="3.6" ry="6.4" transform="rotate(72 0 -15.6)"/><ellipse cx="0" cy="-22" rx="3.6" ry="6.4" transform="rotate(144 0 -15.6)"/><ellipse cx="0" cy="-22" rx="3.6" ry="6.4" transform="rotate(216 0 -15.6)"/><ellipse cx="0" cy="-22" rx="3.6" ry="6.4" transform="rotate(288 0 -15.6)"/></g><circle cx="0" cy="-15.6" r="4.4" fill="#c9a53a"/></g>
+                <g transform="translate(700,740) scale(.95)"><line x1="0" y1="0" x2="0" y2="-15" stroke="#0e4a26" stroke-width="2.6"/><g fill="#d7dee8"><ellipse cx="0" cy="-22" rx="3.6" ry="6.4"/><ellipse cx="0" cy="-22" rx="3.6" ry="6.4" transform="rotate(72 0 -15.6)"/><ellipse cx="0" cy="-22" rx="3.6" ry="6.4" transform="rotate(144 0 -15.6)"/><ellipse cx="0" cy="-22" rx="3.6" ry="6.4" transform="rotate(216 0 -15.6)"/><ellipse cx="0" cy="-22" rx="3.6" ry="6.4" transform="rotate(288 0 -15.6)"/></g><circle cx="0" cy="-15.6" r="4.4" fill="#c9a53a"/></g>
+                <g transform="translate(985,750) scale(1.25)"><line x1="0" y1="0" x2="0" y2="-15" stroke="#0e4a26" stroke-width="2.6"/><g fill="#d7dee8"><ellipse cx="0" cy="-22" rx="3.6" ry="6.4"/><ellipse cx="0" cy="-22" rx="3.6" ry="6.4" transform="rotate(72 0 -15.6)"/><ellipse cx="0" cy="-22" rx="3.6" ry="6.4" transform="rotate(144 0 -15.6)"/><ellipse cx="0" cy="-22" rx="3.6" ry="6.4" transform="rotate(216 0 -15.6)"/><ellipse cx="0" cy="-22" rx="3.6" ry="6.4" transform="rotate(288 0 -15.6)"/></g><circle cx="0" cy="-15.6" r="4.4" fill="#c9a53a"/></g>
+                <g transform="translate(268,706) scale(.95)"><line x1="0" y1="0" x2="0" y2="-13" stroke="#0e4a26" stroke-width="2.4"/><g fill="#b78cc0"><ellipse cx="0" cy="-19" rx="3.2" ry="5.6"/><ellipse cx="0" cy="-19" rx="3.2" ry="5.6" transform="rotate(72 0 -13.4)"/><ellipse cx="0" cy="-19" rx="3.2" ry="5.6" transform="rotate(144 0 -13.4)"/><ellipse cx="0" cy="-19" rx="3.2" ry="5.6" transform="rotate(216 0 -13.4)"/><ellipse cx="0" cy="-19" rx="3.2" ry="5.6" transform="rotate(288 0 -13.4)"/></g><circle cx="0" cy="-13.4" r="3.8" fill="#c9a53a"/></g>
+                <g transform="translate(560,714) scale(.8)"><line x1="0" y1="0" x2="0" y2="-13" stroke="#0e4a26" stroke-width="2.4"/><g fill="#b78cc0"><ellipse cx="0" cy="-19" rx="3.2" ry="5.6"/><ellipse cx="0" cy="-19" rx="3.2" ry="5.6" transform="rotate(72 0 -13.4)"/><ellipse cx="0" cy="-19" rx="3.2" ry="5.6" transform="rotate(144 0 -13.4)"/><ellipse cx="0" cy="-19" rx="3.2" ry="5.6" transform="rotate(216 0 -13.4)"/><ellipse cx="0" cy="-19" rx="3.2" ry="5.6" transform="rotate(288 0 -13.4)"/></g><circle cx="0" cy="-13.4" r="3.8" fill="#c9a53a"/></g>
+                <g transform="translate(1082,692) scale(1.05)"><line x1="0" y1="0" x2="0" y2="-13" stroke="#0e4a26" stroke-width="2.4"/><g fill="#b78cc0"><ellipse cx="0" cy="-19" rx="3.2" ry="5.6"/><ellipse cx="0" cy="-19" rx="3.2" ry="5.6" transform="rotate(72 0 -13.4)"/><ellipse cx="0" cy="-19" rx="3.2" ry="5.6" transform="rotate(144 0 -13.4)"/><ellipse cx="0" cy="-19" rx="3.2" ry="5.6" transform="rotate(216 0 -13.4)"/><ellipse cx="0" cy="-19" rx="3.2" ry="5.6" transform="rotate(288 0 -13.4)"/></g><circle cx="0" cy="-13.4" r="3.8" fill="#c9a53a"/></g>
+            </g>
+            <g>
+                <ellipse cx="170" cy="734" rx="16" ry="9" fill="#5c6b78"/><ellipse cx="170" cy="731" rx="13" ry="6" fill="#75859a"/>
+                <ellipse cx="189" cy="737" rx="10" ry="6" fill="#4c5a66"/><ellipse cx="189" cy="735" rx="7" ry="4" fill="#68788a"/>
+                <ellipse cx="1024" cy="718" rx="15" ry="8" fill="#5c6b78"/><ellipse cx="1024" cy="715" rx="12" ry="5.5" fill="#75859a"/>
+                <ellipse cx="500" cy="742" rx="12" ry="7" fill="#5c6b78"/><ellipse cx="500" cy="739" rx="9" ry="4.5" fill="#75859a"/>
+            </g>
+            <g>
+                <g><circle cx="200" cy="560" r="9" fill="#ffe066" opacity=".22"/><circle cx="200" cy="560" r="2.4" fill="#ffe066" opacity=".95"/></g>
+                <g><circle cx="340" cy="650" r="10" fill="#ffe066" opacity=".2"/><circle cx="340" cy="650" r="2.6" fill="#ffe066" opacity=".9"/></g>
+                <g><circle cx="520" cy="600" r="8" fill="#ffe066" opacity=".22"/><circle cx="520" cy="600" r="2.2" fill="#ffe066" opacity=".95"/></g>
+                <g><circle cx="700" cy="540" r="11" fill="#ffe066" opacity=".18"/><circle cx="700" cy="540" r="2.6" fill="#ffe066" opacity=".85"/></g>
+                <g><circle cx="840" cy="640" r="9" fill="#ffe066" opacity=".22"/><circle cx="840" cy="640" r="2.4" fill="#ffe066" opacity=".9"/></g>
+                <g><circle cx="980" cy="580" r="8" fill="#ffe066" opacity=".22"/><circle cx="980" cy="580" r="2.2" fill="#ffe066" opacity=".95"/></g>
+                <g><circle cx="80" cy="620" r="9" fill="#ffe066" opacity=".2"/><circle cx="80" cy="620" r="2.4" fill="#ffe066" opacity=".9"/></g>
+                <g><circle cx="1120" cy="560" r="10" fill="#ffe066" opacity=".2"/><circle cx="1120" cy="560" r="2.4" fill="#ffe066" opacity=".9"/></g>
+            </g>`);
+
+        const MOLE_SVG = svgImg(210, 230, `
+            <defs>
+                <radialGradient id="fur" cx=".38" cy=".28" r="1"><stop offset="0" stop-color="#b4663a"/><stop offset=".55" stop-color="#96522c"/><stop offset="1" stop-color="#6f3a15"/></radialGradient>
+                <radialGradient id="belly" cx=".5" cy=".35" r=".8"><stop offset="0" stop-color="#fdeec3"/><stop offset="1" stop-color="#eecf8d"/></radialGradient>
+                <linearGradient id="hat" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#ffe066"/><stop offset="1" stop-color="#f0a92e"/></linearGradient>
+            </defs>
+            <circle cx="46" cy="88" r="12" fill="#7c4122"/><circle cx="164" cy="88" r="12" fill="#7c4122"/>
+            <circle cx="46" cy="88" r="5.5" fill="#e79b9b"/><circle cx="164" cy="88" r="5.5" fill="#e79b9b"/>
+            <ellipse cx="105" cy="150" rx="72" ry="76" fill="url(#fur)"/>
+            <ellipse cx="105" cy="180" rx="42" ry="42" fill="url(#belly)"/>
+            <g stroke="#5c3413" stroke-width="1.6" opacity=".55" stroke-linecap="round">
+                <line x1="76" y1="128" x2="50" y2="123"/><line x1="76" y1="135" x2="52" y2="138"/>
+                <line x1="134" y1="128" x2="160" y2="123"/><line x1="134" y1="135" x2="158" y2="138"/>
+            </g>
+            <ellipse cx="105" cy="132" rx="26" ry="19" fill="#f7e3bd"/>
+            <ellipse cx="105" cy="125" rx="10" ry="7.5" fill="#f473a8"/>
+            <ellipse cx="102" cy="122.5" rx="3.2" ry="2.2" fill="#ffd0e5"/>
+            <path d="M95,139 q10,8 20,0" stroke="#5c3413" stroke-width="2.6" fill="none" stroke-linecap="round"/>
+            <rect x="99" y="138" width="6" height="8" rx="1.5" fill="#fff"/><rect x="106" y="138" width="6" height="8" rx="1.5" fill="#fff"/>
+            <circle cx="71" cy="104" r="9.5" fill="#1e293b"/><circle cx="139" cy="104" r="9.5" fill="#1e293b"/>
+            <circle cx="74" cy="101" r="3.4" fill="#fff"/><circle cx="142" cy="101" r="3.4" fill="#fff"/>
+            <circle cx="68.6" cy="107.4" r="1.5" fill="#fff" opacity=".85"/><circle cx="136.6" cy="107.4" r="1.5" fill="#fff" opacity=".85"/>
+            <ellipse cx="52" cy="121" rx="9.5" ry="5.5" fill="#f06f8e" opacity=".35"/><ellipse cx="158" cy="121" rx="9.5" ry="5.5" fill="#f06f8e" opacity=".35"/>
+            <ellipse cx="56" cy="167" rx="16" ry="13" fill="#8a4a24"/><ellipse cx="154" cy="167" rx="16" ry="13" fill="#8a4a24"/>
+            <circle cx="51" cy="162" r="3.4" fill="#6f3a15"/><circle cx="60" cy="161" r="3.4" fill="#6f3a15"/><circle cx="149" cy="162" r="3.4" fill="#6f3a15"/><circle cx="158" cy="161" r="3.4" fill="#6f3a15"/>
+            <ellipse cx="105" cy="73" rx="60" ry="13" fill="#e8a025"/>
+            <path d="M53,73 a52,44 0 0 1 104,0 Z" fill="url(#hat)"/>
+            <path d="M53,73 a52,44 0 0 1 104,0" fill="none" stroke="#c77f12" stroke-width="2.5"/>
+            <path d="M71,55 a40,32 0 0 1 26,-17" stroke="#fff2b0" stroke-width="8" fill="none" stroke-linecap="round" opacity=".85"/>`);
+
+        const HOLE_SVG = svgImg(320, 170, `
+            <defs>
+                <radialGradient id="dirt" cx=".5" cy=".42" r=".7"><stop offset="0" stop-color="#7d4c21"/><stop offset=".7" stop-color="#5f3617"/><stop offset="1" stop-color="#472812"/></radialGradient>
+            </defs>
+            <ellipse cx="160" cy="95" rx="152" ry="67" fill="url(#dirt)"/>
+            <ellipse cx="160" cy="86" rx="138" ry="55" fill="#8a5a2b" opacity=".5"/>
+            <g fill="#3f2210" opacity=".85">
+                <circle cx="58" cy="66" r="9"/><circle cx="108" cy="50" r="7"/><circle cx="212" cy="48" r="8"/><circle cx="264" cy="70" r="9"/><circle cx="88" cy="122" r="8"/><circle cx="232" cy="120" r="9"/><circle cx="160" cy="36" r="6"/>
+            </g>
+            <g fill="#a5713a">
+                <circle cx="82" cy="56" r="6"/><circle cx="182" cy="44" r="6"/><circle cx="254" cy="90" r="6"/><circle cx="64" cy="98" r="6"/><circle cx="140" cy="126" r="5"/>
+            </g>
+            <ellipse cx="160" cy="94" rx="100" ry="37" fill="#1d0d04"/>
+            <path d="M64,96 a96,36 0 0 0 192,0" fill="none" stroke="#b98a52" stroke-width="3" opacity=".7"/>`);
+
+        const MALLET_SVG = svgImg(130, 180, `
+            <defs>
+                <linearGradient id="wood" x1="0" x2="1" y1="0" y2="0"><stop offset="0" stop-color="#d99a55"/><stop offset=".5" stop-color="#c07f3e"/><stop offset="1" stop-color="#9c622c"/></linearGradient>
+                <linearGradient id="hd" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#ffe27a"/><stop offset=".5" stop-color="#fdc73b"/><stop offset="1" stop-color="#ef9f1f"/></linearGradient>
+            </defs>
+            <rect x="57" y="55" width="16" height="118" rx="8" fill="url(#wood)"/>
+            <rect x="57" y="140" width="16" height="30" rx="8" fill="#8a5a2b"/>
+            <g stroke="#6f451c" stroke-width="2"><line x1="61" y1="148" x2="69" y2="148"/><line x1="61" y1="158" x2="69" y2="158"/><line x1="61" y1="168" x2="69" y2="168"/></g>
+            <rect x="8" y="8" width="114" height="56" rx="18" fill="url(#hd)" stroke="#c77f12" stroke-width="3"/>
+            <rect x="53" y="8" width="24" height="56" fill="#0875ff"/>
+            <ellipse cx="42" cy="19" rx="32" ry="7" fill="#ffffff" opacity=".5"/>
+            <rect x="8" y="8" width="11" height="56" rx="8" fill="#000000" opacity=".13"/>
+            <rect x="111" y="8" width="11" height="56" rx="8" fill="#000000" opacity=".13"/>`);
+
+        const MOLE_SVG_B = MOLE_SVG
+            .replace(/#b4663a/g, '#8f9aa8').replace(/#96522c/g, '#6d7887').replace(/#6f3a15/g, '#4d5666')
+            .replace(/#ffe066/g, '#f9a8d4').replace(/#f0a92e/g, '#ec4899').replace(/#e8a025/g, '#db2777');
+        const MOLE_SVG_C = MOLE_SVG
+            .replace(/#b4663a/g, '#a67c52').replace(/#96522c/g, '#8a6238').replace(/#6f3a15/g, '#63451f')
+            .replace(/#ffe066/g, '#7dd3fc').replace(/#f0a92e/g, '#38bdf8').replace(/#e8a025/g, '#0ea5e9');
+
+        const ART = {
+            bgL: svgURL(BG_SVG),
+            bgP: svgURL(BG_SVG),
+            bgN: svgURL(BG_NIGHT_SVG),
+            mole: svgURL(MOLE_SVG),
+            moleB: svgURL(MOLE_SVG_B),
+            moleC: svgURL(MOLE_SVG_C),
+            hole: svgURL(HOLE_SVG),
+            mallet: svgURL(MALLET_SVG)
+        };
+        const MOLE_FUR = ['#96522c', '#6d7887', '#8a6238']; // eyelid tint per variant
+        const art = {};
+        Object.entries(ART).forEach(([k, u]) => {
+            const im = new Image();
+            im.onload = () => { art[k] = im; applyBackdrop(); };
+            im.onerror = () => {};   // offline / blocked → procedural art stays
+            im.src = u;
+        });
+
+        // ---------- Day / night mode ----------
+        let nightMode = false;
+        try {
+            const saved = localStorage.getItem('bec-night');
+            const hr = new Date().getHours();
+            nightMode = saved !== null ? saved === '1' : (hr >= 19 || hr < 6);
+        } catch (e) { /* private mode */ }
+        // nightBlend eases 0→1 so day↔night switches crossfade instead of snapping
+        let nightBlend = nightMode ? 1 : 0;
+
+        function setNight(on) {
+            nightMode = on;
+            try { localStorage.setItem('bec-night', on ? '1' : '0'); } catch (e) {}
+            const t = $('hud-night');
+            if (t) t.innerHTML = on ? ICONS.sun : ICONS.moon;
+            const nb = $('night-mode-btn');
+            if (nb) nb.textContent = on ? '☀️ Day Mode' : '🌙 Night Mode';
+            applyBackdrop();
+        }
+
+        function applyBackdrop() {
+            const img = nightMode ? art.bgN : art.bgL;
+            if (!img) return;
+            const bg = `linear-gradient(rgba(7,19,38,.62), rgba(7,19,38,.62)), url("${nightMode ? ART.bgN : ART.bgL}") center/cover no-repeat`;
+            document.getElementById('start-screen').style.background = bg;
+            document.getElementById('game-over-screen').style.background = bg;
+        }
+
+        // ---------- Seed data: sentence-correction rounds ----------
+        const S = (correct, ...incorrect) => ({ correct, incorrect });
+        const SENTENCES = [
+S("She plays tennis every Saturday.", "She play tennis every Saturday.", "She playing tennis every Saturday."),
+            S("He goes to school by bus.", "He go to school by bus.", "He going to school by bus."),
+            S("They are watching a movie right now.", "They is watching a movie right now.", "They watching a movie right now."),
+            S("I have finished my homework.", "I has finished my homework.", "I have finish my homework."),
+            S("She has a beautiful garden.", "She have a beautiful garden.", "She having a beautiful garden."),
+            S("We went to the beach yesterday.", "We go to the beach yesterday.", "We gone to the beach yesterday."),
+            S("The cat is sleeping on the sofa.", "The cat are sleeping on the sofa.", "The cat sleep on the sofa."),
+            S("My brother does not like coffee.", "My brother do not like coffee.", "My brother not like coffee."),
+            S("Do you speak English?", "Does you speak English?", "Do you speaks English?"),
+            S("She was reading a book when I called.", "She were reading a book when I called.", "She was read a book when I called."),
+            S("The children are playing in the park.", "The children is playing in the park.", "The children play in the park now."),
+            S("I am going to visit my grandmother tomorrow.", "I is going to visit my grandmother tomorrow.", "I am go to visit my grandmother tomorrow."),
+            S("He has already eaten lunch.", "He have already eaten lunch.", "He has already ate lunch."),
+            S("They will arrive at the airport at noon.", "They will arrives at the airport at noon.", "They will arriving at the airport at noon."),
+            S("She can swim very well.", "She can swims very well.", "She can swimming very well."),
+            S("We should study for the exam.", "We should studies for the exam.", "We should studying for the exam."),
+            S("The book is on the table.", "The book are on the table.", "The book on the table."),
+            S("There are many birds in the sky.", "There is many birds in the sky.", "There are much birds in the sky."),
+            S("I like listening to music.", "I like listen to music.", "I like listened to music."),
+            S("She does not want to go out tonight.", "She do not want to go out tonight.", "She does not wants to go out tonight."),
+            S("The teacher explained the lesson clearly.", "The teacher explain the lesson clearly.", "The teacher explaining the lesson clearly."),
+            S("My parents have lived here for ten years.", "My parents has lived here for ten years.", "My parents have live here for ten years."),
+            S("He is taller than his brother.", "He is more taller than his brother.", "He is tallest than his brother."),
+            S("This is the best pizza I have ever eaten.", "This is the better pizza I have ever eaten.", "This is the best pizza I ever eat."),
+            S("She sings beautifully.", "She sings beautiful.", "She sing beautifully."),
+            S("We are having dinner at seven.", "We is having dinner at seven.", "We having dinner at seven."),
+            S("I did not see him yesterday.", "I did not saw him yesterday.", "I do not see him yesterday."),
+            S("They have been friends since childhood.", "They has been friends since childhood.", "They have being friends since childhood."),
+            S("The baby cried all night.", "The baby cry all night.", "The baby crying all night."),
+            S("You should not eat so much sugar.", "You should not eats so much sugar.", "You should not eating so much sugar."),
+            S("He was born in Canada.", "He born in Canada.", "He was borned in Canada."),
+            S("She has never been to Japan.", "She has never went to Japan.", "She have never been to Japan."),
+            S("The sun rises in the east.", "The sun rise in the east.", "The sun is rising in the east every day."),
+            S("I need to buy some milk.", "I need buy some milk.", "I need to buying some milk."),
+            S("They were late for the meeting.", "They was late for the meeting.", "They were late to the meeting."),
+            S("She asked me to help her.", "She asked me help her.", "She asked me helping her."),
+            S("We enjoy playing football.", "We enjoy play football.", "We enjoy to play football."),
+            S("He is interested in learning Spanish.", "He is interested to learn Spanish.", "He is interesting in learning Spanish."),
+            S("The train leaves at 9 o'clock.", "The train leave at 9 o'clock.", "The train leaving at 9 o'clock."),
+            S("I have two sisters and one brother.", "I has two sisters and one brother.", "I have two sister and one brother."),
+            S("She is wearing a red dress.", "She is wear a red dress.", "She wearing a red dress."),
+            S("We must finish this project today.", "We must to finish this project today.", "We must finishing this project today."),
+            S("He usually walks to work.", "He usually walk to work.", "He usually walking to work."),
+            S("The food smells delicious.", "The food smell delicious.", "The food is smell delicious."),
+            S("I forgot to lock the door.", "I forgot locking the door.", "I forget to lock the door yesterday."),
+            S("She apologized for being late.", "She apologized to be late.", "She apologized for be late."),
+            S("They are going to travel to Europe next summer.", "They is going to travel to Europe next summer.", "They are go to travel to Europe next summer."),
+            S("He does his homework every evening.", "He do his homework every evening.", "He doing his homework every evening."),
+            S("The movie was very boring.", "The movie were very boring.", "The movie was very bored."),
+            S("I am afraid of spiders.", "I am afraid from spiders.", "I afraid of spiders."),
+            S("She has been working here since 2015.", "She has been work here since 2015.", "She have been working here since 2015."),
+            S("We need some more chairs.", "We need some more chair.", "We needs some more chairs."),
+            S("He is good at mathematics.", "He is good in mathematics.", "He is well at mathematics."),
+            S("The children were excited about the trip.", "The children was excited about the trip.", "The children were excite about the trip."),
+            S("I would like to order a coffee.", "I would like order a coffee.", "I would like ordering a coffee."),
+            S("She rarely eats fast food.", "She rarely eat fast food.", "She rare eats fast food."),
+            S("They have already left the building.", "They have already leave the building.", "They has already left the building."),
+            S("My father is a doctor.", "My father are a doctor.", "My father is doctor."),
+            S("This bag is heavier than that one.", "This bag is more heavy than that one.", "This bag is heaviest than that one."),
+            S("She told me a funny story.", "She tell me a funny story.", "She told to me a funny story."),
+            S("We arrived at the station early.", "We arrived to the station early.", "We arrive at the station early yesterday."),
+            S("He has a lot of experience in teaching.", "He has a lot of experiences in teaching.", "He have a lot of experience in teaching."),
+            S("The weather is nice today.", "The weather are nice today.", "The weather is nice today, isn't it?"),
+            S("I prefer tea to coffee.", "I prefer tea than coffee.", "I prefer tea more than coffee."),
+            S("She made a delicious cake.", "She make a delicious cake.", "She maked a delicious cake."),
+            S("They are discussing the problem.", "They are discuss the problem.", "They discussing the problem."),
+            S("I have known her for five years.", "I have knew her for five years.", "I has known her for five years."),
+            S("He did not come to the party.", "He did not came to the party.", "He not came to the party."),
+            S("The room was cleaned yesterday.", "The room was clean yesterday.", "The room cleaned yesterday."),
+            S("She wants to become a teacher.", "She want to become a teacher.", "She wants become a teacher."),
+            S("We usually have lunch at noon.", "We usually has lunch at noon.", "We usually having lunch at noon."),
+            S("The keys are on the kitchen counter.", "The keys is on the kitchen counter.", "The key are on the kitchen counter."),
+            S("He speaks three languages fluently.", "He speak three languages fluently.", "He speaks three language fluently."),
+            S("I am looking forward to seeing you.", "I am looking forward to see you.", "I look forward to seeing you yesterday."),
+            S("She was tired after the long journey.", "She were tired after the long journey.", "She was tire after the long journey."),
+            S("They have a big house in the countryside.", "They has a big house in the countryside.", "They have a big house in countryside."),
+            S("The exam was difficult for many students.", "The exam were difficult for many students.", "The exam was difficult to many students."),
+            S("He offered to help me with my work.", "He offered helping me with my work.", "He offered help me with my work."),
+            S("I will call you when I arrive.", "I will call you when I will arrive.", "I call you when I arrive."),
+            S("She has been studying English for two years.", "She has been study English for two years.", "She have been studying English for two years."),
+            S("The restaurant opens at six in the evening.", "The restaurant open at six in the evening.", "The restaurant opening at six in the evening."),
+            S("We enjoyed the concert very much.", "We enjoy the concert very much.", "We enjoyed the concert very good."),
+            S("He is the tallest boy in the class.", "He is the taller boy in the class.", "He is tallest boy in the class."),
+            S("I bought a new laptop last week.", "I buy a new laptop last week.", "I bought a new laptop next week."),
+            S("She can play the piano very well.", "She can plays the piano very well.", "She can playing the piano very well."),
+            S("The students are listening to the teacher.", "The students is listening to the teacher.", "The students listening to the teacher."),
+            S("I have never seen such a beautiful sunset.", "I have never saw such a beautiful sunset.", "I never have seen such a beautiful sunset."),
+            S("He went to the store to buy some bread.", "He go to the store to buy some bread.", "He went to the store for buy some bread."),
+            S("She is always kind to everyone.", "She always is kind to everyone.", "She is always kind for everyone."),
+            S("They will finish the work by tomorrow.", "They will finishes the work by tomorrow.", "They will finished the work by tomorrow."),
+            S("The children love playing in the snow.", "The children loves playing in the snow.", "The children love play in the snow."),
+            S("I do not have any money left.", "I do not have some money left.", "I not have any money left."),
+            S("She made me laugh with her jokes.", "She made me to laugh with her jokes.", "She made me laughing with her jokes."),
+            S("We have been waiting for an hour.", "We have been wait for an hour.", "We has been waiting for an hour."),
+            S("He is used to waking up early.", "He is used to wake up early.", "He used to waking up early."),
+            S("The book was written by a famous author.", "The book was wrote by a famous author.", "The book written by a famous author."),
+            S("I am thinking about changing my job.", "I am thinking to change my job.", "I think about changing my job."),
+            S("She has a lot of friends at school.", "She have a lot of friends at school.", "She has a lot of friend at school."),
+            S("The train was delayed by thirty minutes.", "The train were delayed by thirty minutes.", "The train was delay by thirty minutes."),
+            S("He apologized for his mistake.", "He apologized of his mistake.", "He apologized for he mistake."),
+            S("They are planning to move to a new city.", "They is planning to move to a new city.", "They are plan to move to a new city."),
+            S("I enjoy reading books in my free time.", "I enjoy read books in my free time.", "I enjoy to read books in my free time."),
+            S("She does not like spicy food.", "She do not like spicy food.", "She does not likes spicy food."),
+            S("The meeting will start at ten.", "The meeting will starts at ten.", "The meeting will starting at ten."),
+            S("He has been living in Paris for three years.", "He has been live in Paris for three years.", "He have been living in Paris for three years."),
+            S("We should leave before it gets dark.", "We should leaves before it gets dark.", "We should leaving before it gets dark."),
+            S("The baby is sleeping peacefully.", "The baby are sleeping peacefully.", "The baby sleep peacefully."),
+            S("I have already seen that film.", "I have already saw that film.", "I already have seen that film."),
+            S("She was born in a small village.", "She born in a small village.", "She was borned in a small village."),
+            S("They have known each other for a long time.", "They have knew each other for a long time.", "They has known each other for a long time."),
+            S("He does not have any brothers or sisters.", "He do not have any brothers or sisters.", "He does not has any brothers or sisters."),
+            S("I am going to the gym after work.", "I is going to the gym after work.", "I am go to the gym after work."),
+            S("She has never eaten sushi before.", "She has never ate sushi before.", "She have never eaten sushi before."),
+            S("The sun was shining brightly.", "The sun were shining brightly.", "The sun was shine brightly."),
+            S("We are going to have a party next weekend.", "We is going to have a party next weekend.", "We are go to have a party next weekend."),
+            S("He is interested in photography.", "He is interesting in photography.", "He is interested on photography."),
+            S("She told him the truth.", "She tell him the truth.", "She told to him the truth."),
+            S("The children have finished their homework.", "The children has finished their homework.", "The children have finish their homework."),
+            S("I would rather stay home tonight.", "I would rather to stay home tonight.", "I would rather staying home tonight."),
+            S("He is the best player on the team.", "He is the better player on the team.", "He is best player on the team."),
+            S("She has been to Italy twice.", "She has been to Italy two times.", "She have been to Italy twice."),
+            S("The door was locked from the inside.", "The door was lock from the inside.", "The door locked from the inside."),
+            S("I forgot to bring my umbrella.", "I forgot bringing my umbrella.", "I forget to bring my umbrella."),
+            S("They are excited about the upcoming trip.", "They is excited about the upcoming trip.", "They are excite about the upcoming trip."),
+            S("He has a good sense of humor.", "He have a good sense of humor.", "He has a good sense for humor."),
+            S("The teacher gave us a lot of homework.", "The teacher give us a lot of homework.", "The teacher gave us much homework."),
+            S("She is afraid of the dark.", "She is afraid from the dark.", "She afraid of the dark."),
+            S("We have been to that restaurant before.", "We have been to that restaurant ago.", "We has been to that restaurant before."),
+            S("He usually gets up at six.", "He usually get up at six.", "He usually getting up at six."),
+            S("The flowers need to be watered.", "The flowers needs to be watered.", "The flowers need to watered."),
+            S("I am looking for my keys.", "I am looking my keys.", "I look for my keys."),
+            S("She has been working here since last year.", "She has been work here since last year.", "She have been working here since last year."),
+            S("They will arrive soon.", "They will arrives soon.", "They will arriving soon."),
+            S("The movie starts at eight.", "The movie start at eight.", "The movie starting at eight."),
+            S("He can speak French fluently.", "He can speaks French fluently.", "He can speaking French fluently."),
+            S("I have to finish this report by Friday.", "I has to finish this report by Friday.", "I have finish this report by Friday."),
+            S("She is wearing a beautiful necklace.", "She is wear a beautiful necklace.", "She wearing a beautiful necklace."),
+            S("We should not waste our time.", "We should not wastes our time.", "We should not wasting our time."),
+            S("The cat chased the mouse.", "The cat chase the mouse.", "The cat chasing the mouse."),
+            S("He has already finished his meal.", "He have already finished his meal.", "He has already finish his meal."),
+            S("I am going to buy a new car.", "I is going to buy a new car.", "I am go to buy a new car."),
+            S("She does not like getting up early.", "She do not like getting up early.", "She does not likes getting up early."),
+            S("They were playing chess when I arrived.", "They was playing chess when I arrived.", "They were play chess when I arrived."),
+            S("The book is interesting.", "The book are interesting.", "The book is interested."),
+            S("He has lived in London for five years.", "He has live in London for five years.", "He have lived in London for five years."),
+            S("We enjoyed the party last night.", "We enjoy the party last night.", "We enjoyed the party last night, isn't it?"),
+            S("She is taller than her sister.", "She is more taller than her sister.", "She is tallest than her sister."),
+            S("I need to go to the bank.", "I need go to the bank.", "I need to going to the bank."),
+            S("The children are playing outside.", "The children is playing outside.", "The children play outside now."),
+            S("He was watching TV when I called.", "He were watching TV when I called.", "He was watch TV when I called."),
+            S("She has a lovely smile.", "She have a lovely smile.", "She has lovely smile."),
+            S("I have been to Japan three times.", "I have been to Japan three time.", "I has been to Japan three times."),
+            S("They are going to get married next year.", "They is going to get married next year.", "They are go to get married next year."),
+            S("He does not smoke.", "He do not smoke.", "He does not smokes."),
+            S("The weather was terrible yesterday.", "The weather were terrible yesterday.", "The weather was terribly yesterday."),
+            S("I am reading a fascinating book.", "I is reading a fascinating book.", "I am read a fascinating book."),
+            S("She can run very fast.", "She can runs very fast.", "She can running very fast."),
+            S("We have already eaten dinner.", "We have already ate dinner.", "We has already eaten dinner."),
+            S("He is the oldest in his family.", "He is the older in his family.", "He is oldest in his family."),
+            S("The bus arrives at seven.", "The bus arrive at seven.", "The bus arriving at seven."),
+            S("I would like to have some water.", "I would like have some water.", "I would like having some water."),
+            S("She apologized for the delay.", "She apologized of the delay.", "She apologized for delay."),
+            S("They have been married for ten years.", "They has been married for ten years.", "They have being married for ten years."),
+            S("He is good at playing the guitar.", "He is good in playing the guitar.", "He is well at playing the guitar."),
+            S("I forgot to turn off the light.", "I forgot turning off the light.", "I forget to turn off the light."),
+            S("The children were excited about the holiday.", "The children was excited about the holiday.", "The children were excite about the holiday."),
+            S("She has a lot of work to do.", "She have a lot of work to do.", "She has a lot of works to do."),
+            S("We went to the park yesterday.", "We go to the park yesterday.", "We gone to the park yesterday."),
+            S("He is learning to play the piano.", "He is learn to play the piano.", "He learning to play the piano."),
+            S("The food was delicious.", "The food were delicious.", "The food was deliciously."),
+            S("I have never been to Australia.", "I have never went to Australia.", "I never have been to Australia."),
+            S("She is going to visit her parents.", "She is go to visit her parents.", "She going to visit her parents."),
+            S("They are watching TV right now.", "They is watching TV right now.", "They watching TV right now."),
+            S("He does not have a car.", "He do not have a car.", "He does not has a car."),
+            S("The book was very interesting.", "The book were very interesting.", "The book was very interested."),
+            S("I am going to the store.", "I is going to the store.", "I am go to the store."),
+            S("She has been working all day.", "She has been work all day.", "She have been working all day."),
+            S("We should eat healthy food.", "We should eats healthy food.", "We should eating healthy food."),
+            S("The cat is sleeping on the bed.", "The cat are sleeping on the bed.", "The cat sleep on the bed."),
+            S("He has already seen that movie.", "He have already seen that movie.", "He has already saw that movie."),
+            S("I need to buy some groceries.", "I need buy some groceries.", "I need to buying some groceries."),
+            S("She is afraid of heights.", "She is afraid from heights.", "She afraid of heights."),
+            S("They have been friends for many years.", "They has been friends for many years.", "They have being friends for many years."),
+            S("He is interested in learning new languages.", "He is interested to learn new languages.", "He is interesting in learning new languages."),
+            S("The train leaves at noon.", "The train leave at noon.", "The train leaving at noon."),
+            S("I have two brothers.", "I has two brothers.", "I have two brother."),
+            S("She is wearing a blue dress.", "She is wear a blue dress.", "She wearing a blue dress."),
+            S("We must finish this today.", "We must to finish this today.", "We must finishing this today."),
+            S("He usually walks to school.", "He usually walk to school.", "He usually walking to school."),
+            S("The soup smells good.", "The soup smell good.", "The soup is smell good."),
+            S("They are going to travel next summer.", "They is going to travel next summer.", "They are go to travel next summer."),
+            S("The movie was boring.", "The movie were boring.", "The movie was bored."),
+        ];
+
+        // ---------- Game state ----------
+        const canvas = $('game-canvas');
+        const ctx = canvas.getContext('2d');
+
+        const view = { w: 0, h: 0, scale: 1, playTop: 0, cols: 3, signW: 300 };
+        // Mole dome-center offset from the hole's midline, in px at scale 1:
+        // hidden = +MOLE_BASE (fully below the front wall), full rise = 10px above it.
+        const MOLE_BASE = 56, MOLE_TRAVEL = 66;
+
+        let gameActive = false;
+        let gameMode = 'classic';
+        let score = 0, streak = 0, maxStreak = 0, totalWhacks = 0, correctWhacks = 0;
+        let timer = 90, timeAcc = 0, lives = 3;
+        const LEVEL_ROUNDS = 10;
+        let level = 1, levelProgress = 0, levelReveal = null, unlockedLevel = 1, paused = false;
+        let levelTransition = null, confetti = [];
+        const CONFETTI_COLORS = ['#0875ff', '#e43280', '#ffd54a', '#34d399', '#818cf8', '#fb7185'];
+        try { unlockedLevel = Math.max(1, parseInt(localStorage.getItem('bec-level'), 10) || 1); } catch (e) { /* private mode */ }
+
+        function setPaused(on) {
+            if (!gameActive) on = false;
+            paused = on;
+            $('pause-screen').classList.toggle('hidden', !on);
+            const b = $('hud-pause');
+            if (b) b.innerHTML = on ? ICONS.play : ICONS.pause;
+            if (!on) soundEngine.init(); // audio contexts resume on a user gesture
+        }
+        let sentenceLog = [];
+        let sentenceRound = 0;
+        let roundActive = false, roundSolved = false, roundGap = null;
+        let lastItem = null;
+
+        let mouse = { x: -100, y: -100 };
+        let hammer = { angle: 0, swinging: false, swingProgress: 0 };
+        let effects = [];
+
+        const holes = [];
+        for (let i = 0; i < 6; i++) {
+            holes.push({ id: i, x: 0, y: 0, state: 'hidden', moleY: 0, timer: 0, duration: 9, delay: 0, word: '', isCorrect: false, item: null, signBox: null, blinkT: 2 + Math.random() * 4 });
+        }
+
+        // ---------- Responsive layout ----------
+        function computeView() {
+            const w = canvas.clientWidth || window.innerWidth;
+            const h = canvas.clientHeight || window.innerHeight;
+            const dpr = clamp(window.devicePixelRatio || 1, 1, 2);
+            const pw = Math.round(w * dpr), ph = Math.round(h * dpr);
+            if (canvas.width !== pw || canvas.height !== ph) { canvas.width = pw; canvas.height = ph; }
+            ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+            view.w = w; view.h = h;
+            const hud = $('hud');
+            const hudH = hud.classList.contains('hidden') ? 0 : hud.getBoundingClientRect().height;
+            view.playTop = clamp(hudH + 6, h * 0.16, h * 0.42);
+        }
+
+        // Repositions holes for the current container; keeps each hole's live state
+        // (word, progress, visibility) so resizing mid-game doesn't wipe the board.
+        function layoutHoles() {
+            const top = view.playTop + 14, bottom = view.h - 16;
+            const ah = Math.max(110, bottom - top), aw = Math.max(120, view.w - 24);
+            let cols, rows;
+            if (ah < 250) { cols = 3; rows = 1; }                    // short wide strips
+            else if (view.h > view.w * 1.05) { cols = 2; rows = 3; } // portrait
+            else { cols = 3; rows = 2; }                             // landscape
+            view.cols = cols;
+            const cellW = aw / cols, cellH = ah / rows;
+            view.cellW = cellW;
+            view.scale = clamp(Math.min(cellW / 330, cellH / 260), 0.42, 1.15);
+            view.signW = Math.min(aw / cols * 0.98, 340 * view.scale, 340);
+            let i = 0;
+            for (let r = 0; r < rows; r++) {
+                for (let c = 0; c < cols; c++, i++) {
+                    holes[i].x = 12 + cellW * (c + 0.5);
+                    holes[i].y = top + cellH * (r + 1) - 58 * view.scale;
+                }
+            }
+        }
+
+        function relayout() {
+            computeView(); layoutHoles();
+            const want = clamp(Math.round(view.w / 420), 2, 4);
+            const top = Math.max(view.h * 0.45, view.playTop + 40), bot = view.h - 26;
+            if (worms.length !== want) {
+                worms.length = 0;
+                for (let i = 0; i < want; i++) worms.push({
+                    x: 60 + Math.random() * Math.max(60, view.w - 120), anchor: 0,
+                    dir: Math.random() < 0.5 ? 1 : -1, speed: 9 + Math.random() * 8,
+                    amp: 16 + Math.random() * 14, freq: 0.6 + Math.random() * 0.5,
+                    t: Math.random() * 20, c: WORM_COLORS[i % WORM_COLORS.length], trail: []
+                });
+            }
+            // worm lanes run BETWEEN hole rows so they never crowd the mounds
+            const rowYs = [...new Set(holes.map(h => Math.round(h.y)))].sort((a, b) => a - b);
+            const lanes = [];
+            if (rowYs.length) {
+                lanes.push(clamp((view.playTop + 46 + rowYs[0]) / 2, top, bot));
+                for (let i = 1; i < rowYs.length; i++) lanes.push(clamp((rowYs[i - 1] + rowYs[i]) / 2, top, bot));
+            }
+            if (!lanes.length) lanes.push((top + bot) / 2);
+            worms.forEach((w, i) => {
+                w.anchor = clamp(lanes[i % lanes.length], top, bot);
+                w.x = clamp(w.x, 50, Math.max(60, view.w - 50));
+            });
+            initFlyers();
+        }
+        window.addEventListener('resize', relayout);
+        if (window.ResizeObserver) new ResizeObserver(relayout).observe(document.body);
+
+        // ---------- Rounds ----------
+        // sorted once: higher levels draw from the progressively longer end
+        const SENT_BY_LEN = [...SENTENCES].sort((a, b) => a.correct.length - b.correct.length);
+        function pickSentence() {
+            let pool = SENTENCES;
+            if (gameMode === 'level' && SENTENCES.length > 24) {
+                const span = 24;
+                const start = Math.min(SENTENCES.length - span,
+                    Math.floor((level - 1) / 12 * (SENTENCES.length - span)));
+                pool = SENT_BY_LEN.slice(start, start + span);
+            }
+            let it = pick(pool);
+            if (pool.length > 1 && lastItem) {
+                let guard = 0;
+                while (it.correct === lastItem.correct && guard++ < 10) it = pick(pool);
+            }
+            return it;
+        }
+
+        // Pick n holes spread across different columns so wide signs don't collide.
+        function pickSpreadHoles(n) {
+            const shuffled = [...holes].sort(() => Math.random() - 0.5);
+            const chosen = [], usedX = new Set();
+            for (const h of shuffled) {
+                const k = Math.round(h.x);
+                if (!usedX.has(k)) { chosen.push(h); usedX.add(k); if (chosen.length === n) return chosen; }
+            }
+            for (const h of shuffled) {
+                if (!chosen.includes(h)) { chosen.push(h); if (chosen.length === n) return chosen; }
+            }
+            return chosen;
+        }
+
+        function spawnRound() {
+            const item = pickSentence();
+            lastItem = item;
+            sentenceRound++;
+            roundActive = true;
+            roundSolved = false;
+            // generous stay time so slow readers can finish the sentences;
+            // each level shaves the ceiling so reading gets brisker
+            const lvl = gameMode === 'level';
+            const ceil = lvl ? Math.max(7, 13 - (level - 1) * 0.55) : 13;
+            const dur = clamp(6 + 0.075 * item.correct.length, lvl ? 7 : 9, ceil);
+            const count = (lvl && level >= 4 && view.cols >= 3) ? 4 : 3;
+            const stagger = lvl ? Math.max(0.25, 0.5 - 0.03 * (level - 1)) : 0.5;
+            const spots = pickSpreadHoles(count);
+            const options = [
+                { w: item.correct, ok: true },
+                { w: item.incorrect[0], ok: false },
+                { w: item.incorrect[1] !== undefined ? item.incorrect[1] : item.incorrect[0], ok: false }
+            ].sort(() => Math.random() - 0.5);
+            // the 4th mole at higher levels carries a wrong sentence borrowed
+            // from another round — still exactly ONE correct sentence on the board
+            let extraGuard = 0;
+            while (options.length < spots.length && extraGuard++ < 12) {
+                let other = pick(SENTENCES), guard = 0;
+                while ((other === item || !other.incorrect || !other.incorrect[0]) && guard++ < 12) other = pick(SENTENCES);
+                const fresh = (other.incorrect || []).filter(w => !options.some(o => o.w === w));
+                if (!fresh.length) continue;
+                options.push({ w: pick(fresh), ok: false });
+                options.sort(() => Math.random() - 0.5);
+            }
+            if (spots.length > options.length) spots.length = options.length;
+            spots.forEach((h, i) => {
+                h.word = options[i] ? options[i].w : '';
+                h.isCorrect = !!(options[i] && options[i].ok);
+                h.item = item;
+                h.state = 'waiting';
+                h.delay = i * stagger; // pop one after another
+                h.moleY = 0;
+                h.timer = 0;
+                h.duration = dur;
+            });
+            updateHUD();
+        }
+
+        // ---------- Whacking ----------
+        // Hit region = mole dome ∪ sentence sign (signBox stored by the last draw).
+        function checkWhack(x, y) {
+            if (paused) return;
+            hammer.swinging = true;
+            hammer.swingProgress = 0;
+            if (!gameActive) return;
+            const s = view.scale;
+            for (const hole of holes) {
+                if (hole.state !== 'rising' && hole.state !== 'up') continue;
+                const my = hole.y + (MOLE_BASE - hole.moleY * MOLE_TRAVEL) * s;
+                const sb = hole.signBox;
+                const left = sb ? Math.min(hole.x - 60 * s, sb.l) : hole.x - 95 * s;
+                const right = sb ? Math.max(hole.x + 60 * s, sb.r) : hole.x + 95 * s;
+                const top = sb ? Math.min(my - 70 * s, sb.t) : my - 118 * s;
+                const bottom = my + 58 * s;
+                if (x >= left && x <= right && y >= top && y <= bottom) {
+                    totalWhacks++;
+                    hole.state = 'hiding';
+                    effects.push({ x: clamp(x, 60, view.w - 60), y: clamp(y, 40, view.h - 40), type: 'whack', life: 0.55, max: 0.55, rot: (Math.random() - 0.5) * 0.5 });
+                    if (hole.isCorrect) {
+                        correctWhacks++;
+                        streak++;
+                        if (streak > maxStreak) maxStreak = streak;
+                        const pts = 10 + (streak - 1) * 2;
+                        score += pts;
+                        roundSolved = true;
+                        toast(hole.x, top - 24 * s, `✓ Correct sentence! +${pts}`, 'good');
+                        sentenceLog.push({ text: hole.word, correct: true });
+                        soundEngine.playWhackSuccess();
+                        // clear the board for the next sentence
+                        holes.forEach(o => {
+                            if (o !== hole && (o.state === 'waiting' || o.state === 'rising' || o.state === 'up')) o.state = 'hiding';
+                        });
+                    } else {
+                        streak = 0;
+                        soundEngine.playWhackFail();
+                        toast(hole.x, top - 24 * s, '✗ That sentence has a mistake!', 'bad');
+                        sentenceLog.push({ text: hole.word, correct: false });
+                        // teach, then move on: the correct mole shows itself briefly
+                        revealCorrect();
+                        if (gameMode === 'level') {
+                            lives--;
+                            if (lives <= 0) { updateHUD(); endGame(); return; }
+                        } else {
+                            score = Math.max(0, score - 5);
+                        }
+                    }
+                    updateHUD();
+                    break; // one whack per swing
+                }
+            }
+        }
+
+        // ---------- Floating feedback texts ----------
+        // Show which mole was right: it stays put, glowing green, while the rest duck away.
+        function revealCorrect() {
+            const h = holes.find(o => o.isCorrect && o.state !== 'hidden' && o.state !== 'hiding');
+            holes.forEach(o => {
+                if (o !== h && o.state !== 'hidden' && o.state !== 'hiding') o.state = 'hiding';
+            });
+            if (h) {
+                if (h.state === 'waiting') { h.state = 'up'; h.moleY = 1; h.delay = 0; }
+                h.timer = Math.min(h.timer, h.duration - 0.9);
+                levelReveal = { hole: h, t: 0.75 };
+            }
+        }
+
+        function toast(x, y, text, type) {
+            effects.push({ x: clamp(x, 90, Math.max(90, view.w - 90)), y: Math.max(18, y), text, type, life: 2, max: 2 });
+        }
+
+        function drawEffects(dt) {
+            effects.forEach(e => e.life -= dt);
+            effects = effects.filter(e => e.life > 0);
+            const s = view.scale;
+            for (const e of effects) {
+                if (e.type === 'whack') { drawWhackBurst(e, s); continue; }
+                const t = 1 - e.life / e.max;
+                let fs = clamp(19 * s, 12, 24);
+                ctx.font = `bold ${fs}px ${FONT}`;
+                const maxW = view.w * 0.9;
+                while (fs > 9 && ctx.measureText(e.text).width > maxW) {
+                    fs--;
+                    ctx.font = `bold ${fs}px ${FONT}`;
+                }
+                ctx.save();
+                ctx.globalAlpha = clamp(e.life / 0.35, 0, 1);
+                ctx.translate(e.x, e.y - t * 38 * s);
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.lineWidth = 4;
+                ctx.strokeStyle = '#fff';
+                ctx.strokeText(e.text, 0, 0);
+                ctx.fillStyle = e.type === 'good' ? '#15803d' : e.type === 'bad' ? '#b91c1c' : '#b45309';
+                ctx.fillText(e.text, 0, 0);
+                ctx.restore();
+            }
+        }
+
+        // Comic starburst on every connected hit
+        function drawWhackBurst(e, s) {
+            const t = e.life / e.max; // 1 → 0
+            const R = 42 * s * (1.35 - 0.35 * t);
+            ctx.save();
+            ctx.globalAlpha = clamp(t / 0.3, 0, 1);
+            ctx.translate(e.x, e.y);
+            ctx.rotate(e.rot);
+            ctx.beginPath();
+            const spikes = 10;
+            for (let i = 0; i < spikes * 2; i++) {
+                const ang = (Math.PI * 2 * i) / (spikes * 2);
+                const rad = i % 2 === 0 ? R : R * 0.55;
+                ctx.lineTo(Math.cos(ang) * rad, Math.sin(ang) * rad);
+            }
+            ctx.closePath();
+            ctx.fillStyle = '#fde047';
+            ctx.strokeStyle = '#b45309';
+            ctx.lineWidth = Math.max(2, 3 * s);
+            ctx.fill();
+            ctx.stroke();
+            ctx.rotate(-e.rot);
+            ctx.font = `900 ${clamp(19 * s, 12, 23)}px ${FONT}`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.lineWidth = 4;
+            ctx.strokeStyle = '#fff';
+            ctx.strokeText('WHACK!', 0, 0);
+            ctx.fillStyle = '#071326';
+            ctx.fillText('WHACK!', 0, 0);
+            ctx.restore();
+        }
+
+        // ---------- HUD ----------
+        let lastScore = -1, lastStreak = -1;
+        function bumpEl(el) {
+            el.classList.remove('bump');
+            void el.offsetWidth;
+            el.classList.add('bump');
+        }
+        function updateHUD() {
+            $('score-val').textContent = score;
+            $('streak-val').textContent = streak + 'x';
+            if (score !== lastScore) { bumpEl($('score-chip')); lastScore = score; }
+            if (streak !== lastStreak) { bumpEl($('streak-chip')); lastStreak = streak; }
+            const lvl = gameMode === 'level';
+            $('sentence-count').textContent = lvl
+                ? Math.min(levelProgress + 1, LEVEL_ROUNDS) + '/' + LEVEL_ROUNDS
+                : Math.max(1, sentenceRound);
+            $('q-eyebrow').textContent = lvl ? 'Sentence Correction · Level ' + level : 'Sentence Correction';
+            $('timer-val').textContent = timer + 's';
+            $('timer-card').classList.toggle('hidden', gameMode !== 'classic');
+            $('level-card').classList.toggle('hidden', !lvl);
+            $('hearts-card').classList.toggle('hidden', !lvl);
+            $('level-val').textContent = 'L' + level;
+            let pips = '';
+            for (let i = 0; i < LEVEL_ROUNDS; i++) {
+                pips += `<i${i < levelProgress ? ' class="on"' : i === levelProgress ? ' class="now"' : ''}></i>`;
+            }
+            $('level-pips').innerHTML = pips;
+            let hh = '';
+            for (let i = 0; i < 3; i++) hh += `<span class="hrt${i < lives ? '' : ' off'}">${ICONS.heart}</span>`;
+            $('hearts-container').innerHTML = hh;
+        }
+
+        // ---------- Game flow ----------
+        function startGame(mode) {
+            gameMode = mode;
+            score = 0; streak = 0; maxStreak = 0; totalWhacks = 0; correctWhacks = 0; lives = 3;
+            timer = mode === 'classic' ? 90 : 0; timeAcc = 0;
+            if (mode === 'level') { levelProgress = 0; levelReveal = null; }
+            levelTransition = null; confetti = [];
+            sentenceLog = []; effects = [];
+            sentenceRound = 0;
+            roundActive = false; roundSolved = false; roundGap = null; lastItem = null;
+            holes.forEach(h => { h.state = 'hidden'; h.moleY = 0; h.timer = 0; h.delay = 0; h.word = ''; h.isCorrect = false; h.item = null; h.signBox = null; });
+
+            paused = false;
+            $('start-screen').classList.add('hidden');
+            $('game-over-screen').classList.add('hidden');
+            $('pause-screen').classList.add('hidden');
+            $('hud-pause').innerHTML = ICONS.pause;
+            $('hud').classList.remove('hidden');
+            $('timer-card').classList.remove('urgent');
+
+            soundEngine.init();
+            gameActive = true;
+            relayout();
+            requestAnimationFrame(relayout); // re-measure after the HUD settles
+            updateHUD();
+            spawnRound();
+        }
+
+        function startLevel(n) { level = Math.max(1, n | 0); startGame('level'); }
+
+        // Level cleared: celebrate in-place and roll straight into the next one —
+        // no menu, no panel. Only running out of hearts (or Classic ending) shows a panel.
+        function beginLevelTransition() {
+            roundActive = false;
+            roundGap = null;
+            levelReveal = null;
+            unlockedLevel = Math.max(unlockedLevel, level + 1);
+            try { localStorage.setItem('bec-level', String(unlockedLevel)); } catch (e) { /* private mode */ }
+            holes.forEach(h => { if (h.state !== 'hidden') h.state = 'hiding'; });
+            levelTransition = { t: 0, dur: 2.4, from: level, to: level + 1 };
+            confetti = [];
+            for (let i = 0; i < 80; i++) confetti.push({
+                x: Math.random() * view.w, y: -30 - Math.random() * view.h * 0.45,
+                vx: (Math.random() - 0.5) * 50, vy: 70 + Math.random() * 110,
+                rot: Math.random() * 6.3, vr: (Math.random() - 0.5) * 9,
+                c: CONFETTI_COLORS[i % CONFETTI_COLORS.length],
+                w: 4 + Math.random() * 5, h: 7 + Math.random() * 6, sway: Math.random() * 6.3
+            });
+            soundEngine.playWhackSuccess();
+        }
+
+        function updateLevelTransition(dt) {
+            if (!levelTransition) return;
+            levelTransition.t += dt;
+            if (levelTransition.t >= levelTransition.dur) {
+                level = levelTransition.to;
+                levelProgress = 0;
+                lives = 3;                    // fresh hearts for the fresh level
+                levelTransition = null;
+                confetti = [];
+                updateHUD();
+                spawnRound();
+            }
+        }
+
+        function drawLevelTransition(dt) {
+            if (!levelTransition) return;
+            const T = levelTransition, s = view.scale;
+            const easeOutBack = x => 1 + 2.7 * Math.pow(x - 1, 3) + 1.7 * Math.pow(x - 1, 2);
+            const tIn = Math.min(1, T.t / 0.45);
+            const tOut = clamp((T.dur - T.t) / 0.45, 0, 1);
+            const alpha = Math.min(tIn, tOut);
+            // soft wash so the banner pops against the garden
+            ctx.fillStyle = `rgba(7,19,38,${0.42 * alpha})`;
+            ctx.fillRect(0, 0, view.w, view.h);
+            // confetti drifts down with a little sway
+            for (const p of confetti) {
+                p.vy += 130 * dt;
+                p.x += (p.vx + Math.sin(animT * 3 + p.sway) * 26) * dt;
+                p.y += p.vy * dt;
+                p.rot += p.vr * dt;
+                ctx.save();
+                ctx.translate(p.x, p.y);
+                ctx.rotate(p.rot);
+                ctx.globalAlpha = alpha;
+                ctx.fillStyle = p.c;
+                ctx.fillRect(-p.w / 2, -p.h / 2, p.w, p.h);
+                ctx.restore();
+            }
+            // banner card bounces in, holds, fades out
+            const cx = view.w / 2, cy = view.h * 0.42;
+            const sc = REDUCE_MOTION ? 1 : 0.7 + 0.3 * easeOutBack(tIn);
+            ctx.save();
+            ctx.translate(cx, cy);
+            ctx.scale(sc, sc);
+            ctx.globalAlpha = alpha;
+            const bw = Math.min(view.w * 0.86, 520);
+            const bh = clamp(118 * s, 96, 140);
+            ctx.shadowColor = 'rgba(7,19,38,.5)';
+            ctx.shadowBlur = 24 * s;
+            ctx.shadowOffsetY = 8 * s;
+            const grad = ctx.createLinearGradient(0, -bh / 2, 0, bh / 2);
+            grad.addColorStop(0, '#2a86ff');
+            grad.addColorStop(0.55, '#0875ff');
+            grad.addColorStop(1, '#1357e8');
+            ctx.fillStyle = grad;
+            rr(ctx, -bw / 2, -bh / 2, bw, bh, bh * 0.28);
+            ctx.fill();
+            ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0; ctx.shadowOffsetY = 0;
+            ctx.strokeStyle = '#fff';
+            ctx.lineWidth = Math.max(3, 5 * s);
+            rr(ctx, -bw / 2, -bh / 2, bw, bh, bh * 0.28);
+            ctx.stroke();
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillStyle = '#fff';
+            ctx.font = `900 ${clamp(34 * s, 22, 40)}px ${FONT}`;
+            ctx.fillText(`LEVEL ${T.from} COMPLETE!`, 0, -bh * 0.16);
+            ctx.font = `700 ${clamp(19 * s, 13, 20)}px ${FONT}`;
+            ctx.fillStyle = 'rgba(255,255,255,.92)';
+            ctx.fillText(`Level ${T.to} is coming up — hearts refilled 💙`, 0, bh * 0.24);
+            ctx.restore();
+        }
+
+        function endGame() {
+            gameActive = false;
+            roundActive = false;
+            roundGap = null;
+            levelReveal = null;
+            paused = false;
+            levelTransition = null;
+            confetti = [];
+            effects = [];
+            holes.forEach(h => { h.state = 'hiding'; });
+            soundEngine.playGameOver();
+
+            $('hud').classList.add('hidden');
+            $('pause-screen').classList.add('hidden');
+            $('game-over-screen').classList.remove('hidden');
+            relayout();
+
+            if (gameMode === 'level') {
+                $('game-over-title').textContent = 'Out of Hearts!';
+                $('game-over-subtitle').textContent = `You solved ${levelProgress} of ${LEVEL_ROUNDS} sentences. Try again!`;
+            } else {
+                $('game-over-title').textContent = "Time's Up!";
+                $('game-over-subtitle').textContent = correctWhacks > 0
+                    ? `You nailed ${correctWhacks} correct sentence${correctWhacks > 1 ? 's' : ''}!`
+                    : 'Give it another try — you got this!';
+            }
+            $('final-score').textContent = score;
+            $('final-streak').textContent = maxStreak + 'x';
+            $('final-accuracy').textContent = totalWhacks > 0 ? Math.round(correctWhacks / totalWhacks * 100) + '%' : '0%';
+
+            const rc = $('review-list');
+            rc.innerHTML = sentenceLog.length
+                ? sentenceLog.slice(-8).map(it => `
+                    <div class="rv">
+                        <span>${esc(it.text)}</span>
+                        <span class="rv-tag ${it.correct ? 'ok' : 'bad'}">${it.correct ? 'Correct ✓' : 'Mistake ✗'}</span>
+                    </div>`).join('')
+                : '<div class="rv-empty">No sentences whacked yet — try again!</div>';
+        }
+
+        function restartGame() { startGame(gameMode); }
+
+        function returnToMenu() {
+            gameActive = false;
+            roundActive = false;
+            roundGap = null;
+            paused = false;
+            holes.forEach(h => { h.state = 'hiding'; });
+            $('game-over-screen').classList.add('hidden');
+            $('pause-screen').classList.add('hidden');
+            $('hud').classList.add('hidden');
+            $('start-screen').classList.remove('hidden');
+            $('level-btn-sub').textContent = unlockedLevel > 1
+                ? `Continue · Level ${unlockedLevel}`
+                : '10 sentences · 3 hearts';
+            relayout();
+        }
+
+        function toggleSound() {
+            soundEngine.enabled = !soundEngine.enabled;
+            $('sound-toggle-btn').textContent = soundEngine.enabled ? '🔊 Sound On' : '🔇 Sound Off';
+            $('hud-sound').innerHTML = soundEngine.enabled ? ICONS.spkOn : ICONS.spkOff;
+        }
+
+        // ---------- Main loop ----------
+        let lastTime = performance.now();
+        let animT = 0;
+
+        // Glanceable depletion bar: classic = the 90s clock, level = the moles' stay window
+        function updateRoundBar() {
+            const bar = $('round-bar');
+            if (!bar) return;
+            let frac = null;
+            if (gameMode === 'classic') frac = clamp(timer / 90, 0, 1);
+            else if (levelReveal) frac = 1;
+            else {
+                const up = holes.find(h => h.state === 'up' || h.state === 'rising');
+                if (up) frac = clamp((up.duration - up.timer) / up.duration, 0, 1);
+            }
+            if (frac === null) { bar.style.width = '0%'; return; }
+            bar.style.width = (frac * 100) + '%';
+            bar.classList.toggle('low', frac < 0.25);
+        }
+
+        function gameLoop(now) {
+            // clamp dt so a backgrounded tab can't fast-forward the game
+            const dt = clamp((now - lastTime) / 1000, 0, 0.05);
+            lastTime = now;
+            animT += dt;
+            // ease the day↔night crossfade and the foreground parallax
+            nightBlend += ((nightMode ? 1 : 0) - nightBlend) * Math.min(1, dt * 2.6);
+            if (Math.abs(nightBlend - (nightMode ? 1 : 0)) < 0.004) nightBlend = nightMode ? 1 : 0;
+
+            ctx.clearRect(0, 0, view.w, view.h);
+            drawBackground();
+            const gdt = paused ? 0 : dt;   // gameplay freezes under pause; the scene stays drawn
+            try { updateWorms(gdt); } catch (e) { console.warn('worm update failed', e); }
+            drawWorms();
+            try { updateFlyers(gdt); } catch (e) { console.warn('flyer update failed', e); }
+            drawFlyers();
+            try { updateMoles(gdt); } catch (e) { console.warn('mole update failed', e); }
+            if (gameActive) {
+                // a throwing round/spawn must never kill the render loop
+                try { updateGame(gdt); } catch (e) { console.warn('game update failed', e); }
+                updateRoundBar();
+            }
+            // one bad hole must never blank the whole scene layer
+            for (const h of [...holes].sort((a, b) => a.y - b.y)) {
+                try { drawHoleAndMole(h); } catch (e) { console.warn('hole draw failed', e); }
+            }
+            try { drawSceneLight(); } catch (e) { console.warn('scene light failed', e); }
+            for (const h of [...holes].sort((a, b) => a.y - b.y)) {
+                try { drawSignLayer(h); } catch (e) { console.warn('sign draw failed', e); }
+            }
+            drawEffects(gdt);
+            drawLevelTransition(gdt);
+            drawHammer(dt);
+            requestAnimationFrame(gameLoop);
+        }
+
+        function updateMoles(dt) {
+            for (const h of holes) {
+                // idle blink clock runs whenever this mole is out of its hole
+                if (h.state === 'rising' || h.state === 'up') {
+                    h.blinkT -= dt;
+                    if (h.blinkT <= -0.13) h.blinkT = 2.5 + Math.random() * 4.5;
+                }
+                if (h.state === 'waiting') {
+                    h.delay -= dt;
+                    if (h.delay <= 0) { h.state = 'rising'; soundEngine.playPop(); }
+                } else if (h.state === 'rising') {
+                    h.moleY += dt * 4;
+                    if (h.moleY >= 1) { h.moleY = 1; h.state = 'up'; h.timer = 0; }
+                } else if (h.state === 'up') {
+                    h.timer += dt;
+                    if (h.timer >= h.duration) h.state = 'hiding';
+                } else if (h.state === 'hiding') {
+                    h.moleY -= dt * 4;
+                    if (h.moleY <= 0) { h.moleY = 0; h.state = 'hidden'; h.signBox = null; }
+                }
+            }
+        }
+
+        function updateGame(dt) {
+            if (gameMode === 'classic') {
+                timeAcc += dt;
+                while (timeAcc >= 1) {
+                    timeAcc -= 1;
+                    timer--;
+                    $('timer-val').textContent = timer + 's';
+                    $('timer-card').classList.toggle('urgent', timer <= 10);
+                    if (timer <= 0) { endGame(); return; }
+                }
+            }
+            if (levelReveal) {
+                levelReveal.t -= dt;
+                if (levelReveal.t <= 0) {
+                    const rh = levelReveal.hole;
+                    if (rh.state === 'up' || rh.state === 'rising') rh.state = 'hiding';
+                    levelReveal = null;
+                }
+            }
+            updateLevelTransition(dt);
+            // Round over once every mole is gone (a reveal holds the board open)
+            if (roundActive && !levelReveal && holes.every(h => h.state === 'hidden') && roundGap === null) {
+                if (gameMode === 'level' && roundSolved) {
+                    levelProgress++;
+                    if (levelProgress >= LEVEL_ROUNDS) { updateHUD(); beginLevelTransition(); return; }
+                }
+                if (!roundSolved && lastItem) {
+                    toast(view.w / 2, Math.max(18, view.playTop + 20), `The correct one was: “${lastItem.correct}”`, 'miss');
+                }
+                roundGap = roundSolved ? 0.55 : (gameMode === 'level' ? 0.9 : 1.6);
+                roundActive = false;
+                updateHUD();
+            }
+            if (roundGap !== null) {
+                roundGap -= dt;
+                if (roundGap <= 0) { roundGap = null; if (gameActive) spawnRound(); }
+            }
+        }
+
+        // ---------- Drawing ----------
+        function drawBackground() {
+            const w = view.w, h = view.h;
+            // cover-fit, but BOTTOM-anchored: in wide-short containers the art
+            // scales by width, and anchoring the grass to the container floor
+            // keeps the play area on lawn instead of a sky sliver
+            const cover = img => {
+                const sc = Math.max(w / img.naturalWidth, h / img.naturalHeight);
+                ctx.drawImage(img, (w - img.naturalWidth * sc) / 2,
+                    Math.min(0, h - img.naturalHeight * sc),
+                    img.naturalWidth * sc, img.naturalHeight * sc);
+            };
+            const dayImg = (h > w * 1.05) ? (art.bgP || art.bgL) : (art.bgL || art.bgP);
+            if (dayImg || art.bgN) {
+                // draw the day garden, then wash the night scene over it by blend
+                if (dayImg) cover(dayImg);
+                if (art.bgN && nightBlend > 0.01) {
+                    ctx.save();
+                    ctx.globalAlpha = nightBlend;
+                    cover(art.bgN);
+                    ctx.restore();
+                }
+                return;
+            }
+            const horizon = clamp(view.playTop - 8, h * 0.18, h * 0.45);
+            const sky = ctx.createLinearGradient(0, 0, 0, horizon);
+            sky.addColorStop(0, '#4fc9f5');
+            sky.addColorStop(1, '#c9efff');
+            ctx.fillStyle = sky;
+            ctx.fillRect(0, 0, w, horizon);
+
+            // sun with a soft glow
+            const sunR = clamp(w * 0.06 + 26, 34, 62);
+            const glow = ctx.createRadialGradient(w - 90, 70, sunR * 0.4, w - 90, 70, sunR * 2);
+            glow.addColorStop(0, 'rgba(254,240,138,.75)');
+            glow.addColorStop(1, 'rgba(254,240,138,0)');
+            ctx.fillStyle = glow;
+            ctx.beginPath();
+            ctx.arc(w - 90, 70, sunR * 2, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = '#fef08a';
+            ctx.beginPath();
+            ctx.arc(w - 90, 70, sunR, 0, Math.PI * 2);
+            ctx.fill();
+
+            // puffy clouds
+            ctx.fillStyle = 'rgba(255,255,255,.92)';
+            const cloud = (cx, cy, k) => {
+                ctx.beginPath();
+                ctx.arc(cx - 30 * k, cy, 16 * k, 0, Math.PI * 2);
+                ctx.arc(cx, cy - 10 * k, 22 * k, 0, Math.PI * 2);
+                ctx.arc(cx + 32 * k, cy, 16 * k, 0, Math.PI * 2);
+                ctx.fill();
+            };
+            cloud(w * 0.16, 62, 1.1);
+            cloud(w * 0.55, 42, 0.9);
+            cloud(w * 0.82, 78, 0.7);
+
+            ctx.fillStyle = '#5ee88d';
+            ctx.beginPath();
+            ctx.ellipse(w * 0.25, horizon + 10, w * 0.45, 70, 0, 0, Math.PI * 2);
+            ctx.ellipse(w * 0.8, horizon + 6, w * 0.4, 60, 0, 0, Math.PI * 2);
+            ctx.fill();
+
+            const fl = ctx.createLinearGradient(0, horizon, 0, h);
+            fl.addColorStop(0, '#34d470');
+            fl.addColorStop(1, '#148a3e');
+            ctx.fillStyle = fl;
+            ctx.fillRect(0, horizon, w, h - horizon);
+
+            // decorative bushes along the horizon
+            const ds = Math.max(0.6, view.scale);
+            ctx.fillStyle = '#2eb856';
+            [0.06, 0.3, 0.72, 0.95].forEach(f => {
+                ctx.beginPath();
+                ctx.ellipse(w * f, horizon + 16, 44 * ds, 20 * ds, 0, 0, Math.PI * 2);
+                ctx.fill();
+            });
+
+            // daisies between the hole columns, along the bottom edge
+            const cw = view.cellW || w / (view.cols || 3);
+            const xs = [20, w - 20];
+            for (let c = 1; c < (view.cols || 3); c++) xs.push(12 + cw * c);
+            xs.forEach((fx, i) => {
+                const fy = h - 10 * ds - (i % 2) * 6 * ds;
+                ctx.strokeStyle = '#0f7a36';
+                ctx.lineWidth = Math.max(1.5, 2 * ds);
+                ctx.beginPath();
+                ctx.moveTo(fx, fy);
+                ctx.lineTo(fx, fy - 10 * ds);
+                ctx.stroke();
+                ctx.fillStyle = '#ffffff';
+                for (let p = 0; p < 5; p++) {
+                    const a = (Math.PI * 2 * p) / 5;
+                    ctx.beginPath();
+                    ctx.arc(fx + Math.cos(a) * 4 * ds, fy - 10 * ds + Math.sin(a) * 4 * ds, 2.8 * ds, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+                ctx.fillStyle = '#fbbf24';
+                ctx.beginPath();
+                ctx.arc(fx, fy - 10 * ds, 2.2 * ds, 0, Math.PI * 2);
+                ctx.fill();
+            });
+        }
+
+        // ---------- ambient flyers: butterflies by day, fireflies at night ----------
+        const FLYER_TINTS = ['#f472b6', '#fbbf24', '#818cf8', '#fb7185'];
+        const flyers = [];
+        function initFlyers() {
+            flyers.length = 0;
+            const n = clamp(Math.round(view.w / 420), 2, 4);
+            for (let i = 0; i < n; i++) flyers.push({
+                x: Math.random() * view.w, baseY: view.h * (0.16 + Math.random() * 0.3),
+                t: Math.random() * 20, dir: Math.random() < 0.5 ? 1 : -1, speed: 26 + Math.random() * 22,
+                c: FLYER_TINTS[i % FLYER_TINTS.length], ph: Math.random() * 6
+            });
+        }
+        function updateFlyers(dt) {
+            for (const f of flyers) {
+                f.t += dt;
+                f.x += f.dir * f.speed * dt;
+                if (f.x < 16) { f.x = 16; f.dir = 1; }
+                if (f.x > view.w - 16) { f.x = view.w - 16; f.dir = -1; }
+            }
+        }
+        function drawFlyers() {
+            for (const f of flyers) {
+                const y = f.baseY + Math.sin(f.t * 1.4 + f.ph) * 26;
+                if (nightBlend > 0.02) {
+                    // firefly: a warm dot pulsing in and out (fades in with night)
+                    const a = (0.35 + 0.65 * (0.5 + 0.5 * Math.sin(f.t * 3 + f.ph))) * nightBlend;
+                    const g = ctx.createRadialGradient(f.x, y, 0, f.x, y, 9);
+                    g.addColorStop(0, `rgba(255,244,150,${a})`);
+                    g.addColorStop(1, 'rgba(255,244,150,0)');
+                    ctx.fillStyle = g;
+                    ctx.beginPath();
+                    ctx.arc(f.x, y, 9, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+                if (nightBlend < 0.98) {
+                    // butterfly: two flapping wings around a small body (fades out with night)
+                    const flap = Math.abs(Math.sin(f.t * 14 + f.ph)) * 0.75 + 0.25;
+                    ctx.save();
+                    ctx.globalAlpha = 1 - nightBlend;
+                    ctx.translate(f.x, y);
+                    ctx.scale(f.dir, 1);
+                    ctx.fillStyle = f.c;
+                    ctx.beginPath();
+                    ctx.ellipse(-4.5 * flap - 1, -2, 5 * flap + 1.5, 6, -0.4, 0, Math.PI * 2);
+                    ctx.ellipse(4.5 * flap + 1, -2, 5 * flap + 1.5, 6, 0.4, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.fillStyle = '#3f3f46';
+                    ctx.beginPath();
+                    ctx.ellipse(0, 0, 1.4, 5, 0, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.restore();
+                }
+            }
+        }
+
+        // ---------- wandering worms on the lawn ----------
+        const WORM_COLORS = [
+            { body: '#ef8fb4', dark: '#d3739b', face: '#5c3413' },
+            { body: '#f4a26e', dark: '#d9854b', face: '#5c3413' },
+            { body: '#c9a7ee', dark: '#ab87d4', face: '#5c3413' }
+        ];
+        const worms = [];
+
+        function updateWorms(dt) {
+            for (const w of worms) {
+                w.t += dt;
+                w.x += w.dir * w.speed * dt;
+                if (w.x < 50) { w.x = 50; w.dir = 1; }
+                if (w.x > view.w - 50) { w.x = view.w - 50; w.dir = -1; }
+                w.y = w.anchor + Math.sin(w.t * w.freq * Math.PI * 2) * w.amp;
+                w.trail.unshift({ x: w.x, y: w.y });
+                // keep just enough trail for the body length
+                const maxLen = 80 * clamp(view.scale, 0.6, 1);
+                let d = 0;
+                for (let i = 1; i < w.trail.length; i++) {
+                    d += Math.hypot(w.trail[i].x - w.trail[i - 1].x, w.trail[i].y - w.trail[i - 1].y);
+                    if (d > maxLen) { w.trail.length = i + 1; break; }
+                }
+            }
+        }
+
+        function drawWorms() {
+            const ws = clamp(view.scale, 0.6, 1);
+            const spacing = 8.5 * ws;
+            const segs = 8;
+            for (const w of worms) {
+                // sample the 9 body circles along the movement trail
+                const pts = [{ x: w.x, y: w.y }];
+                let di = 0, acc = 0;
+                for (let s = 1; s <= segs; s++) {
+                    const target = s * spacing;
+                    let placed = false;
+                    while (di < w.trail.length - 1) {
+                        const a = w.trail[di], b = w.trail[di + 1];
+                        const d = Math.hypot(b.x - a.x, b.y - a.y);
+                        if (acc + d >= target) {
+                            const f = (target - acc) / (d || 1);
+                            pts.push({ x: a.x + (b.x - a.x) * f, y: a.y + (b.y - a.y) * f });
+                            placed = true;
+                            break;
+                        }
+                        acc += d; di++;
+                    }
+                    if (!placed) pts.push(pts[s - 1]);
+                }
+                // body from tail to head so the head overlaps
+                for (let i = segs; i >= 0; i--) {
+                    const p = pts[i];
+                    const r = Math.max(2.6, (7.2 - i * 0.45) * ws * (1 + 0.07 * Math.sin(w.t * 6 - i * 0.9)));
+                    ctx.beginPath();
+                    ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
+                    ctx.fillStyle = i % 2 === 0 ? w.c.body : w.c.dark;
+                    ctx.fill();
+                }
+                // face on the head, looking the way it travels
+                const h = pts[0];
+                const look = w.dir * 1.6 * ws;
+                ctx.fillStyle = '#fff';
+                ctx.beginPath();
+                ctx.arc(h.x - 2.8 * ws + look, h.y - 2.4 * ws, 2.3 * ws, 0, Math.PI * 2);
+                ctx.arc(h.x + 2.8 * ws + look, h.y - 2.4 * ws, 2.3 * ws, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.fillStyle = w.c.face;
+                ctx.beginPath();
+                ctx.arc(h.x - 2.6 * ws + look * 1.4, h.y - 2.2 * ws, 1.15 * ws, 0, Math.PI * 2);
+                ctx.arc(h.x + 3.0 * ws + look * 1.4, h.y - 2.2 * ws, 1.15 * ws, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.strokeStyle = w.c.face;
+                ctx.lineWidth = Math.max(1, 1.3 * ws);
+                ctx.beginPath();
+                ctx.arc(h.x + look * 1.8, h.y + 0.6 * ws, 2.6 * ws, 0.25 * Math.PI, 0.75 * Math.PI);
+                ctx.stroke();
+            }
+        }
+
+        // Word-wrap a sentence into <=4 lines, shrinking the font until it fits.
+        function wrapSentence(text, maxW, s) {
+            let fs = clamp(18 * s, 12, 20);
+            for (;;) {
+                ctx.font = `bold ${fs}px ${FONT}`;
+                const words = text.split(' ');
+                const lines = [];
+                let line = '';
+                for (const wd of words) {
+                    const t = line ? line + ' ' + wd : wd;
+                    if (ctx.measureText(t).width <= maxW || !line) line = t;
+                    else { lines.push(line); line = wd; }
+                }
+                if (line) lines.push(line);
+                const tooWide = lines.some(l => ctx.measureText(l).width > maxW);
+                if ((lines.length <= 4 && !tooWide) || fs <= 9) return { lines, fs };
+                fs--;
+            }
+        }
+
+        function drawHoleAndMole(hole) {
+            const s = view.scale, hx = hole.x, hy = hole.y;
+
+            // contact shadow grounds the mound on the grass
+            ctx.fillStyle = 'rgba(8,45,22,.28)';
+            ctx.beginPath();
+            ctx.ellipse(hx, hy + 44 * s, 122 * s, 26 * s, 0, 0, Math.PI * 2);
+            ctx.fill();
+
+            // dirt mound (hosted art, or procedural rim)
+            if (art.hole) {
+                const hw = 228 * s;
+                const hh = hw * art.hole.naturalHeight / art.hole.naturalWidth;
+                ctx.drawImage(art.hole, hx - hw / 2, hy + 4 * s - hh / 2, hw, hh);
+            } else {
+                ctx.fillStyle = '#451a03';
+                ctx.beginPath();
+                ctx.ellipse(hx, hy + 4 * s, 106 * s, 46 * s, 0, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            // the shaft opening is always procedural so the mole's emergence
+            // lines up exactly with the clip and the front lip, whatever the art
+            const orx = 76 * s, ory = 30 * s, ocy = hy + 2 * s;
+            const og = ctx.createRadialGradient(hx, ocy - 6 * s, 3 * s, hx, ocy, orx);
+            og.addColorStop(0, '#000000');
+            og.addColorStop(1, '#2a1206');
+            ctx.fillStyle = og;
+            ctx.beginPath();
+            ctx.ellipse(hx, ocy, orx, ory, 0, 0, Math.PI * 2);
+            ctx.fill();
+
+            // gentle idle bob so standing moles feel alive
+            const bob = hole.state === 'up' && !REDUCE_MOTION ? Math.sin(animT * 2.2 + hole.id * 1.7) * 0.018 : 0;
+            const my = hy + (MOLE_BASE - (hole.moleY + bob) * MOLE_TRAVEL) * s;
+            if (hole.moleY > 0.03) {
+                ctx.save();
+
+                // clip to above the opening's midline; the front lip drawn
+                // later hides the cut, so the mole rises out of the shaft
+                ctx.beginPath();
+                ctx.rect(0, 0, view.w, ocy);
+                ctx.clip();
+
+                // short post rises behind the mole's hat and sways with the sign
+                const sway = Math.sin(animT * 1.6 + hole.id * 2.1) * 0.03;
+                const gripY = my - 120 * s;
+                ctx.save();
+                ctx.translate(hx, gripY);
+                ctx.rotate(sway);
+                ctx.fillStyle = '#8b5a2b';
+                rr(ctx, -4.5 * s, 0, 9 * s, 32 * s, 4 * s);
+                ctx.fill();
+                ctx.restore();
+
+                const revealing = levelReveal && levelReveal.hole === hole;
+                const rvA = revealing ? clamp(levelReveal.t / 0.75, 0, 1) : 0;
+                if (revealing) {
+                    // golden winner's aura behind the mole
+                    ctx.save();
+                    ctx.globalCompositeOperation = 'screen';
+                    const au = ctx.createRadialGradient(hx, my - 18 * s, 8 * s, hx, my - 18 * s, 100 * s);
+                    au.addColorStop(0, `rgba(255,216,90,${0.34 * rvA})`);
+                    au.addColorStop(1, 'rgba(255,216,90,0)');
+                    ctx.fillStyle = au;
+                    ctx.beginPath();
+                    ctx.arc(hx, my - 18 * s, 100 * s, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.restore();
+                }
+
+                if (art.mole) {
+                    const mv = [art.mole, art.moleB, art.moleC][hole.id % 3] || art.mole;
+                    const mh = 152 * s;
+                    const mw = mh * mv.naturalWidth / mv.naturalHeight;
+                    const mx0 = hx - mw / 2, my0 = my + 26 * s - mh;
+                    ctx.drawImage(mv, mx0, my0, mw, mh);
+                    const kx = mw / 210, ky = mh / 230;
+                    // blink: brief fur-colored eyelids where the sprite's eyes sit
+                    if (hole.blinkT < 0 && !revealing) {
+                        ctx.fillStyle = MOLE_FUR[hole.id % 3];
+                        [71, 139].forEach(ex => {
+                            ctx.beginPath();
+                            ctx.ellipse(mx0 + ex * kx, my0 + 104 * ky, 10.5 * kx, 7 * ky, 0, 0, Math.PI * 2);
+                            ctx.fill();
+                        });
+                    }
+                    if (revealing) {
+                        // the correct mole beams: happy closed eyes, a big grin,
+                        // blush — and twinkles popping around its hat
+                        ctx.save();
+                        ctx.globalAlpha = rvA;
+                        ctx.strokeStyle = '#1e293b';
+                        ctx.lineWidth = Math.max(2.5, 4 * kx);
+                        ctx.lineCap = 'round';
+                        [71, 139].forEach(ex => {
+                            ctx.beginPath();
+                            ctx.arc(mx0 + ex * kx, my0 + 105 * ky, 10 * kx, Math.PI, Math.PI * 2);
+                            ctx.stroke();
+                        });
+                        // open grin with a toothy top and tongue
+                        const gx = mx0 + 105 * kx, gy = my0 + 130 * ky, gr = 15 * kx;
+                        ctx.fillStyle = '#5b1f0e';
+                        ctx.beginPath();
+                        ctx.arc(gx, gy, gr, 0, Math.PI);
+                        ctx.closePath();
+                        ctx.fill();
+                        ctx.fillStyle = '#fff';
+                        ctx.fillRect(gx - gr * 0.7, gy - 1, gr * 1.4, Math.max(2, 3.2 * ky));
+                        ctx.fillStyle = '#f473a8';
+                        ctx.beginPath();
+                        ctx.ellipse(gx, gy + gr * 0.55, gr * 0.45, gr * 0.3, 0, 0, Math.PI * 2);
+                        ctx.fill();
+                        ctx.fillStyle = 'rgba(240,111,142,.5)';
+                        [[46, 118], [164, 118]].forEach(([bx, by]) => {
+                            ctx.beginPath();
+                            ctx.ellipse(mx0 + bx * kx, my0 + by * ky, 9 * kx, 6 * ky, 0, 0, Math.PI * 2);
+                            ctx.fill();
+                        });
+                        // twinkles around the hat
+                        ctx.fillStyle = '#ffd54a';
+                        ctx.strokeStyle = '#fff';
+                        ctx.lineWidth = 1;
+                        [[18, 12], [192, 6], [40, -14], [172, -20], [105, -34]].forEach(([px, py], i) => {
+                            const tw = 0.55 + 0.45 * Math.sin(animT * 9 + i * 1.7);
+                            const sxp = mx0 + px * kx, syp = my0 + py * ky;
+                            const r = (3.4 + (i % 2) * 1.6) * tw * (0.7 + 0.3 * rvA);
+                            ctx.beginPath();
+                            ctx.moveTo(sxp, syp - r * 2);
+                            ctx.lineTo(sxp + r * 0.62, syp - r * 0.62);
+                            ctx.lineTo(sxp + r * 2, syp);
+                            ctx.lineTo(sxp + r * 0.62, syp + r * 0.62);
+                            ctx.lineTo(sxp, syp + r * 2);
+                            ctx.lineTo(sxp - r * 0.62, syp + r * 0.62);
+                            ctx.lineTo(sxp - r * 2, syp);
+                            ctx.lineTo(sxp - r * 0.62, syp - r * 0.62);
+                            ctx.closePath();
+                            ctx.fill();
+                        });
+                        ctx.restore();
+                    }
+                } else {
+                    // mole dome
+                    ctx.fillStyle = '#9a3412';
+                    ctx.beginPath();
+                    ctx.arc(hx, my, 52 * s, Math.PI, 0);
+                    ctx.fill();
+
+                    // belly
+                    ctx.fillStyle = '#fef08a';
+                    ctx.beginPath();
+                    ctx.ellipse(hx, my + 14 * s, 28 * s, 24 * s, 0, 0, Math.PI * 2);
+                    ctx.fill();
+
+                    // eyes
+                    ctx.fillStyle = '#1e293b';
+                    ctx.beginPath();
+                    ctx.arc(hx - 17 * s, my - 14 * s, 6.5 * s, 0, Math.PI * 2);
+                    ctx.arc(hx + 17 * s, my - 14 * s, 6.5 * s, 0, Math.PI * 2);
+                    ctx.fill();
+
+                    // snout
+                    ctx.fillStyle = '#fbcfe8';
+                    ctx.beginPath();
+                    ctx.ellipse(hx, my, 13 * s, 9 * s, 0, 0, Math.PI * 2);
+                    ctx.fill();
+
+                    // construction hat
+                    ctx.fillStyle = '#eab308';
+                    ctx.beginPath();
+                    ctx.ellipse(hx, my - 44 * s, 44 * s, 11 * s, 0, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.fillRect(hx - 21 * s, my - 66 * s, 42 * s, 24 * s);
+
+                    // paws
+                    ctx.fillStyle = '#7c3a12';
+                    ctx.beginPath();
+                    ctx.arc(hx - 11 * s, my - 33 * s, 9 * s, 0, Math.PI * 2);
+                    ctx.arc(hx + 11 * s, my - 33 * s, 9 * s, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+
+                ctx.restore();
+            } else {
+                hole.signBox = null;
+            }
+
+            // front lip of the opening over the mole's base
+            ctx.fillStyle = '#170b04';
+            ctx.beginPath();
+            ctx.ellipse(hx, ocy, orx, ory, 0, 0, Math.PI);
+            ctx.fill();
+            ctx.strokeStyle = 'rgba(196,154,86,.85)';
+            ctx.lineWidth = Math.max(1.5, 3 * s);
+            ctx.beginPath();
+            ctx.ellipse(hx, ocy, orx, ory, 0, Math.PI * 0.06, Math.PI * 0.94);
+            ctx.stroke();
+        }
+
+        // Signs (+ night flashlights) draw AFTER the scene-light pass, so the
+        // night tint can never dim them — the reading surface stays bright.
+        function drawSignLayer(hole) {
+            if (hole.state !== 'rising' && hole.state !== 'up') return;
+            const s = view.scale, hx = hole.x, hy = hole.y;
+            const bob = hole.state === 'up' && !REDUCE_MOTION ? Math.sin(animT * 2.2 + hole.id * 1.7) * 0.018 : 0;
+            const my = hy + (MOLE_BASE - (hole.moleY + bob) * MOLE_TRAVEL) * s;
+            const sway = REDUCE_MOTION ? 0 : Math.sin(animT * 1.6 + hole.id * 2.1) * 0.03;
+            const gripY = my - 120 * s;
+            const w0 = view.signW;
+            let { lines, fs } = wrapSentence(hole.word, w0 - 20 * s, s);
+            // never let the card poke up under the HUD: shrink until the top fits
+            while (gripY - (lines.length * fs * 1.32 + 14 * s) < view.playTop + 8 && fs > 10) fs--;
+            const lineH = fs * 1.32;
+            const signH = lines.length * lineH + 14 * s;
+            // keep the card inside the canvas even for edge-column holes
+            const cx = clamp(hx, w0 / 2 + 10, Math.max(w0 / 2 + 10, view.w - w0 / 2 - 10));
+
+            // at night the mole holds a flashlight up at its sign
+            const revealing = levelReveal && levelReveal.hole === hole;
+            if (nightBlend > 0.02 && hole.moleY > 0.45 && !revealing) {
+                const lx = hx + 15 * s, ly = my - 27 * s;
+                const tx = cx, ty = gripY - signH * 0.45;
+                const ang = Math.atan2(ty - ly, tx - lx);
+                const len = Math.hypot(tx - lx, ty - ly) + signH * 0.55;
+                const ax = Math.cos(ang), ay = Math.sin(ang);
+                const px = -ay, py = ax;
+                const hw1 = 7 * s, hw2 = 66 * s;
+                const fx = lx + ax * len, fy = ly + ay * len;
+                const flick = (REDUCE_MOTION ? 1 : 0.9 + 0.1 * Math.sin(animT * 9 + hole.id * 2.3)) * nightBlend;
+                ctx.save();
+                ctx.globalCompositeOperation = 'screen';
+                const beam = ctx.createLinearGradient(lx, ly, fx, fy);
+                beam.addColorStop(0, `rgba(255,238,170,${0.55 * flick})`);
+                beam.addColorStop(0.75, `rgba(255,238,170,${0.22 * flick})`);
+                beam.addColorStop(1, 'rgba(255,238,170,0)');
+                ctx.beginPath();
+                ctx.moveTo(lx + px * hw1, ly + py * hw1);
+                ctx.lineTo(fx + px * hw2, fy + py * hw2);
+                ctx.lineTo(fx - px * hw2, fy - py * hw2);
+                ctx.lineTo(lx - px * hw1, ly - py * hw1);
+                ctx.closePath();
+                ctx.fillStyle = beam;
+                ctx.fill();
+                const gl = ctx.createRadialGradient(lx, ly, 2, lx, ly, 48 * s);
+                gl.addColorStop(0, `rgba(255,244,200,${0.55 * flick})`);
+                gl.addColorStop(1, 'rgba(255,244,200,0)');
+                ctx.fillStyle = gl;
+                ctx.beginPath();
+                ctx.arc(lx, ly, 48 * s, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
+                // the flashlight itself, gripped in the paw
+                ctx.save();
+                ctx.translate(lx, ly);
+                ctx.rotate(ang);
+                ctx.fillStyle = '#475569';
+                rr(ctx, -17 * s, -3.5 * s, 15 * s, 7 * s, 2.5 * s);
+                ctx.fill();
+                ctx.fillStyle = '#334155';
+                rr(ctx, -3 * s, -4.5 * s, 6 * s, 9 * s, 2 * s);
+                ctx.fill();
+                ctx.fillStyle = '#fde68a';
+                ctx.beginPath();
+                ctx.arc(3.5 * s, 0, 3.2 * s, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.fillStyle = '#fff';
+                ctx.beginPath();
+                ctx.arc(4 * s, -1 * s, 1.1 * s, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
+            }
+
+            // the sentence sign, swaying above the hat
+            ctx.save();
+            ctx.translate(cx, gripY);
+            ctx.rotate(sway);
+            const y0 = -signH;
+            const pulse = REDUCE_MOTION ? 1 : 0.9 + 0.1 * Math.sin(animT * (nightBlend > 0.5 ? 9 : 2) + hole.id * (nightBlend > 0.5 ? 2.3 : 1.4));
+            // glow halo — a strong warm bloom at night, a BEC-blue aura by day
+            ctx.save();
+            if (nightBlend > 0.5) ctx.globalCompositeOperation = 'screen';
+            ctx.shadowColor = nightBlend > 0.5 ? 'rgba(255,220,130,1)' : 'rgba(8,117,255,.65)';
+            ctx.shadowBlur = (nightBlend > 0.5 ? 30 : 16) * s * pulse;
+            ctx.fillStyle = '#ffffff';
+            rr(ctx, -w0 / 2, y0, w0, signH, 12 * s);
+            ctx.fill();
+            ctx.fill();
+            ctx.fill();
+            ctx.restore();
+            // board face, border, and the drop shadow that ties it into the scene
+            ctx.fillStyle = '#ffffff';
+            ctx.strokeStyle = revealing ? '#16a34a' : '#2563eb';
+            ctx.lineWidth = Math.max(2, 4.5 * s);
+            ctx.shadowColor = 'rgba(7,19,38,.35)';
+            ctx.shadowBlur = 10 * s;
+            ctx.shadowOffsetY = 4 * s;
+            rr(ctx, -w0 / 2, y0, w0, signH, 12 * s);
+            ctx.fill();
+            ctx.shadowColor = 'transparent';
+            ctx.shadowBlur = 0;
+            ctx.shadowOffsetY = 0;
+            ctx.stroke();
+                ctx.fillStyle = '#0f172a';
+                ctx.font = `bold ${fs}px ${FONT}`;
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                lines.forEach((ln, i) => ctx.fillText(ln, 0, y0 + 7 * s + lineH * (i + 0.5)));
+                if (revealing) {
+                    // stamp the verdict across the card's bottom edge
+                    ctx.font = `900 ${Math.max(10, fs * 0.72)}px ${FONT}`;
+                    const label = '✓ CORRECT';
+                    const pw = ctx.measureText(label).width + 18 * s;
+                    ctx.fillStyle = '#16a34a';
+                    rr(ctx, -pw / 2, -10 * s, pw, 21 * s, 10.5 * s);
+                    ctx.fill();
+                    ctx.strokeStyle = 'rgba(255,255,255,.9)';
+                    ctx.lineWidth = Math.max(1.5, 2 * s);
+                    rr(ctx, -pw / 2, -10 * s, pw, 21 * s, 10.5 * s);
+                    ctx.stroke();
+                    ctx.fillStyle = '#fff';
+                    ctx.fillText(label, 0, 0.5 * s);
+                }
+                ctx.restore();
+
+            // hit region for the sign (world coords; sway is tiny)
+            hole.signBox = { l: cx - w0 / 2 - 10, r: cx + w0 / 2 + 10, t: gripY - signH - 10, b: gripY + 12 };
+        }
+
+        // Unified lighting pass: sun glow from the top right + a soft floor
+        // vignette, so background, mounds, moles and signs share one scene.
+        // At night the whole scene gets a moonlit grade instead.
+        function drawSceneLight() {
+            const w = view.w, h = view.h;
+            // both passes run every frame; the nightBlend share crossfades them
+            if (nightBlend < 0.99) {
+                ctx.save();
+                ctx.globalAlpha = 1 - nightBlend;
+                const lg = ctx.createRadialGradient(w * 0.85, h * 0.06, 40, w * 0.85, h * 0.06, w * 0.8);
+                lg.addColorStop(0, 'rgba(255,244,200,.14)');
+                lg.addColorStop(1, 'rgba(255,244,200,0)');
+                ctx.fillStyle = lg;
+                ctx.fillRect(0, 0, w, h);
+                const vg = ctx.createLinearGradient(0, h * 0.7, 0, h);
+                vg.addColorStop(0, 'rgba(6,34,18,0)');
+                vg.addColorStop(1, 'rgba(6,34,18,.28)');
+                ctx.fillStyle = vg;
+                ctx.fillRect(0, 0, w, h);
+                ctx.restore();
+            }
+            if (nightBlend > 0.01) {
+                ctx.save();
+                ctx.globalAlpha = nightBlend;
+                ctx.fillStyle = 'rgba(10,22,48,.30)';
+                ctx.fillRect(0, 0, w, h);
+                const mg = ctx.createRadialGradient(w * 0.86, h * 0.1, 30, w * 0.86, h * 0.1, w * 0.72);
+                mg.addColorStop(0, 'rgba(190,210,255,.13)');
+                mg.addColorStop(1, 'rgba(190,210,255,0)');
+                ctx.fillStyle = mg;
+                ctx.fillRect(0, 0, w, h);
+                const vg = ctx.createLinearGradient(0, h * 0.6, 0, h);
+                vg.addColorStop(0, 'rgba(3,8,20,0)');
+                vg.addColorStop(1, 'rgba(3,8,20,.5)');
+                ctx.fillStyle = vg;
+                ctx.fillRect(0, 0, w, h);
+                ctx.restore();
+            }
+        }
+
+        // On touch devices the mallet cursor only obscures the tap target.
+        // Coarse-pointer devices start without it; on hybrid laptops any touch
+        // hides it and genuine mouse movement (not the synthetic post-touch
+        // events) brings it back.
+        const coarsePointer = window.matchMedia('(pointer: coarse)');
+        let isTouch = coarsePointer.matches;
+        let lastTouchAt = -1e9;
+
+        function drawHammer(dt) {
+            if (isTouch || mouse.x < -50) return;
+            if (hammer.swinging) {
+                hammer.swingProgress = Math.min(1, hammer.swingProgress + dt * 7);
+                hammer.angle = -Math.PI * 0.35 + Math.sin(hammer.swingProgress * Math.PI) * Math.PI * 0.5;
+                if (hammer.swingProgress >= 1) hammer.swinging = false;
+            } else {
+                hammer.angle = -Math.PI * 0.15;
+            }
+            const hs = clamp(view.scale, 0.55, 1);
+            ctx.save();
+            ctx.translate(mouse.x, mouse.y);
+            ctx.rotate(hammer.angle);
+            ctx.scale(hs, hs);
+            if (art.mallet) {
+                const mh = 125;
+                const mw = mh * art.mallet.naturalWidth / art.mallet.naturalHeight;
+                ctx.drawImage(art.mallet, -mw / 2, 20 - mh / 2, mw, mh);
+            } else {
+                ctx.fillStyle = '#8b4513';
+                rr(ctx, -6, 10, 12, 70, 5);
+                ctx.fill();
+                ctx.fillStyle = '#a0522d';
+                rr(ctx, -35, -20, 70, 35, 8);
+                ctx.fill();
+                ctx.strokeStyle = '#5c2d0c';
+                ctx.lineWidth = 3;
+                ctx.stroke();
+            }
+            ctx.restore();
+        }
+
+        // ---------- Input ----------
+        window.addEventListener('mousemove', e => {
+            if (!coarsePointer.matches && performance.now() - lastTouchAt > 800) isTouch = false;
+            mouse.x = e.clientX;
+            mouse.y = e.clientY;
+        });
+        canvas.addEventListener('mousedown', e => checkWhack(e.clientX, e.clientY));
+        canvas.addEventListener('contextmenu', e => e.preventDefault());
+        window.addEventListener('touchmove', e => {
+            if (e.touches.length) {
+                lastTouchAt = performance.now();
+                isTouch = true;
+                mouse.x = e.touches[0].clientX;
+                mouse.y = e.touches[0].clientY;
+            }
+        }, { passive: true });
+        // preventDefault stops the emulated mouse events, so a tap whacks exactly once
+        canvas.addEventListener('touchstart', e => {
+            if (e.touches.length) {
+                e.preventDefault();
+                lastTouchAt = performance.now();
+                isTouch = true;
+                const t = e.touches[0];
+                mouse.x = t.clientX;
+                mouse.y = t.clientY;
+                checkWhack(t.clientX, t.clientY);
+            }
+        }, { passive: false });
+
+        // Number keys whack the visible moles, left to right — classroom-friendly.
+        // Esc / P toggles pause.
+        window.addEventListener('keydown', e => {
+            if (e.altKey || e.ctrlKey || e.metaKey) return;
+            if ((e.key === 'Escape' || e.key === 'p' || e.key === 'P') && gameActive) { setPaused(!paused); return; }
+            if (!gameActive || paused) return;
+            if (e.key === '1' || e.key === '2' || e.key === '3') {
+                const active = holes.filter(h => h.state === 'rising' || h.state === 'up').sort((a, b) => a.x - b.x);
+                const h = active[+e.key - 1];
+                if (h) checkWhack(h.x, h.y - 30 * view.scale);
+            }
+        });
+
+        // ---------- Boot ----------
+        setNight(nightMode);
+        $('hud-sound').innerHTML = ICONS.spkOn;
+        if (unlockedLevel > 1) $('level-btn-sub').textContent = `Continue · Level ${unlockedLevel}`;
+        relayout();
+        requestAnimationFrame(gameLoop);
+    </script>
+</body>
+</html>
